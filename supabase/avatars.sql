@@ -1,6 +1,7 @@
 -- Avatari igrača. Pokreni jednom u Supabase -> SQL Editor na postojećoj bazi.
 -- (Novi projekti ovo dobijaju kroz schema.sql.)
 
+
 alter table public.players
   add column if not exists avatar text check (char_length(avatar) <= 16);
 
