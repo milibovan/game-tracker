@@ -1,5 +1,6 @@
 const SCORE_RE = /(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)/g
 const PERCENT_RE = /(\d+(?:[.,]\d+)?)\s*%/
+const KM_RE = /(\d+(?:[.,]\d+)?)\s*km(?![\p{L}\p{N}])/iu
 
 const num = (s) => Number(String(s).replace(',', '.'))
 
@@ -11,7 +12,7 @@ export const norm = (s) =>
 
 // Izvlači "ostvareno/maksimum" iz teksta (ručni unos ili zalijepljeni share tekst).
 // Redoslijed: prvi par x/y gdje je x <= y (pa datum "18/11" ne smeta), zatim sam broj
-// uz podrazumijevani maksimum igrice, i na kraju procenat ("Dalje od 92 % igrača" = 92/100).
+// uz podrazumijevani maksimum igrice, zatim kilometri ("659 km"), i na kraju procenat.
 export function parseScore(text, defaultMax) {
   const t = String(text ?? '')
   for (const m of t.matchAll(SCORE_RE)) {
@@ -23,6 +24,14 @@ export function parseScore(text, defaultMax) {
   if (defaultMax && /^\d+(?:[.,]\d+)?$/.test(only)) {
     const score = num(only)
     if (score <= defaultMax) return { score, max: Number(defaultMax) }
+  }
+  // Kilometri bez maksimuma ("Докле, бре? #16 · 659 km"): maksimum je podrazumijevani
+  // maksimum igrice, a ako ga nema ili je premašen, prva veća hiljada.
+  const km = t.match(KM_RE)
+  if (km) {
+    const score = num(km[1])
+    const max = defaultMax && score <= defaultMax ? Number(defaultMax) : Math.max(1, Math.ceil(score / 1000)) * 1000
+    return { score, max }
   }
   const p = t.match(PERCENT_RE)
   if (p && num(p[1]) <= 100) return { score: num(p[1]), max: 100 }
@@ -92,7 +101,8 @@ export function splitShare(text, games) {
   const items = []
   for (const seg of segments) {
     const raw = seg.parts.join('\n\n')
-    const parsed = parseScore(raw)
+    const game = matchGame(seg.title, raw, games)
+    const parsed = parseScore(raw, game?.default_max)
     const prev = items[items.length - 1]
     // Potpis na kraju ("Size It Up – Daily Size Guessing Game") pripada prethodnom bloku.
     if (!parsed && prev && sameTitle(seg.title, prev.title)) {
@@ -104,7 +114,7 @@ export function splitShare(text, games) {
       raw,
       score: parsed ? parsed.score : null,
       max: parsed ? parsed.max : null,
-      game: matchGame(seg.title, raw, games),
+      game,
     })
   }
   return items
