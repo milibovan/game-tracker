@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './lib/supabase.js'
-import { detectGame, fmt, parseScore } from './lib/parse.js'
+import { fmt, norm, parseScore, splitShare } from './lib/parse.js'
 import { pct, rankDay, rankGame } from './lib/ranking.js'
 
 const SESSION_KEY = 'leaderboard-session'
@@ -464,6 +464,7 @@ function EntryForm({ games, day, draft, defaultGame, callRpc, onSaved, onGameAdd
   const [busy, setBusy] = useState(false)
   const [newGame, setNewGame] = useState('')
   const [newMax, setNewMax] = useState('')
+  const [skipped, setSkipped] = useState([]) // indeksi blokova izbačenih iz grupnog unosa
 
   useEffect(() => {
     if (defaultGame) setGameId(defaultGame)
@@ -481,17 +482,69 @@ function EntryForm({ games, day, draft, defaultGame, callRpc, onSaved, onGameAdd
   const game = games.find((g) => g.id === gameId)
   const parsed = parseScore(scoreText, game?.default_max)
 
+  // Zalijepljen tekst sa više igrica odjednom: pregled svih blokova umjesto jednog unosa.
+  const items = useMemo(() => splitShare(raw, games), [raw, games])
+  const batch = items.length >= 2 ? items.filter((_, i) => !skipped.includes(i)) : null
+  const batchReady = batch ? batch.filter((it) => it.score !== null) : []
+
   const onRawChange = (text) => {
     setRaw(text)
+    setSkipped([])
     setMessage(null)
-    const found = parseScore(text)
-    if (found) setScoreText(`${fmt(found.score)}/${fmt(found.max)}`)
-    const detected = detectGame(text, games)
-    if (detected) setGameId(detected.id)
+    const parts = splitShare(text, games)
+    if (parts.length !== 1) return
+    const [only] = parts
+    if (only.score !== null) setScoreText(`${fmt(only.score)}/${fmt(only.max)}`)
+    if (only.game) setGameId(only.game.id)
+  }
+
+  const saveBatch = async () => {
+    setBusy(true)
+    setMessage(null)
+    const errors = []
+    let known = games
+    let saved = 0
+    try {
+      // Prvo se prave igrice koje još ne postoje, pa se lista učita ponovo.
+      const missing = batchReady.filter((it) => !it.game)
+      for (const it of missing) {
+        const err = await callRpc('add_game', { p_name: it.title, p_default_max: it.max })
+        if (err && !err.includes('games_name_key')) errors.push(`${it.title}: ${err}`)
+      }
+      if (missing.length) {
+        const { data } = await supabase.from('games').select('id,name,default_max')
+        if (data) known = data
+        onGameAdded()
+      }
+      for (const it of batchReady) {
+        const target = it.game || known.find((g) => norm(g.name) === norm(it.title))
+        if (!target) continue
+        const err = await callRpc('save_score', {
+          p_game: target.id,
+          p_day: day,
+          p_score: it.score,
+          p_max: it.max,
+          p_raw: it.raw,
+        })
+        if (err) errors.push(`${it.title}: ${err}`)
+        else saved += 1
+      }
+    } finally {
+      setBusy(false)
+    }
+    if (saved) onSaved()
+    if (errors.length) {
+      return setMessage({ ok: false, text: `Sačuvano ${saved}. Greške: ${errors.join('; ')}` })
+    }
+    setMessage({ ok: true, text: `Sačuvano rezultata: ${saved}` })
+    setRaw('')
+    setSkipped([])
+    setScoreText('')
   }
 
   const submit = async (e) => {
     e.preventDefault()
+    if (batch) return saveBatch()
     if (!game) return setMessage({ ok: false, text: 'Izaberi igricu.' })
     if (!parsed) {
       return setMessage({ ok: false, text: 'Upiši rezultat u formatu ostvareno/maksimum, npr. 300/500.' })
@@ -543,27 +596,61 @@ function EntryForm({ games, day, draft, defaultGame, callRpc, onSaved, onGameAdd
           value={raw}
           onChange={(e) => onRawChange(e.target.value)}
         />
-        <div className="row">
-          <select value={gameId} onChange={(e) => setGameId(e.target.value)}>
-            <option value="">Igrica…</option>
-            {games.map((g) => (
-              <option key={g.id} value={g.id}>
-                {g.name}
-              </option>
-            ))}
-          </select>
-          <input
-            placeholder={game?.default_max ? `npr. 8/${fmt(game.default_max)}` : 'npr. 300/500'}
-            value={scoreText}
-            onChange={(e) => {
-              setScoreText(e.target.value)
-              setMessage(null)
-            }}
-          />
-          <button className="primary" disabled={busy}>
-            Sačuvaj
-          </button>
-        </div>
+        {batch ? (
+          <>
+            <ul className="batch">
+              {items.map((it, i) =>
+                skipped.includes(i) ? null : (
+                  <li key={i}>
+                    <span>
+                      <strong>{it.game ? it.game.name : it.title}</strong>
+                      {!it.game && it.score !== null && <em className="tag">nova igrica</em>}
+                    </span>
+                    <span>
+                      {it.score !== null ? (
+                        `${fmt(it.score)}/${fmt(it.max)}`
+                      ) : (
+                        <span className="muted">rezultat nije prepoznat, preskače se</span>
+                      )}
+                    </span>
+                    <button
+                      type="button"
+                      className="link"
+                      onClick={() => setSkipped([...skipped, i])}
+                    >
+                      izbaci
+                    </button>
+                  </li>
+                ),
+              )}
+            </ul>
+            <button className="primary" disabled={busy || !batchReady.length}>
+              Sačuvaj sve ({batchReady.length})
+            </button>
+          </>
+        ) : (
+          <div className="row">
+            <select value={gameId} onChange={(e) => setGameId(e.target.value)}>
+              <option value="">Igrica…</option>
+              {games.map((g) => (
+                <option key={g.id} value={g.id}>
+                  {g.name}
+                </option>
+              ))}
+            </select>
+            <input
+              placeholder={game?.default_max ? `npr. 8/${fmt(game.default_max)}` : 'npr. 300/500'}
+              value={scoreText}
+              onChange={(e) => {
+                setScoreText(e.target.value)
+                setMessage(null)
+              }}
+            />
+            <button className="primary" disabled={busy}>
+              Sačuvaj
+            </button>
+          </div>
+        )}
       </form>
       {message && <p className={message.ok ? 'ok' : 'error'}>{message.text}</p>}
 

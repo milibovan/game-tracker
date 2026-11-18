@@ -58,6 +58,9 @@ create policy "read games" on public.games for select to anon, authenticated usi
 create policy "read scores" on public.scores for select to anon, authenticated using (true);
 -- player_secrets namjerno nema nijednu policy: nedostupna je klijentu.
 
+-- Noviji Supabase projekti ne daju automatski pristup tabelama, pa se čitanje daje izričito.
+grant usage on schema public to anon, authenticated;
+grant select on public.players, public.games, public.scores to anon, authenticated;
 revoke insert, update, delete on public.players, public.games, public.scores from anon, authenticated;
 revoke all on public.player_secrets from anon, authenticated;
 
