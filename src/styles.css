@@ -482,6 +482,38 @@ button.cell.has-raw {
   border-color: var(--line-2);
 }
 
+/* Najbolji rezultat dana u igrici. */
+button.cell.best {
+  border-color: var(--blue);
+  background: var(--blue);
+  color: var(--on-blue);
+  font-weight: 800;
+  box-shadow: 0 3px 10px -3px color-mix(in srgb, var(--blue) 80%, transparent);
+}
+
+/* Najbolji rezultat ikada u igrici: zlatna pločica. */
+button.cell.record {
+  border-color: #c9962a;
+  background: linear-gradient(135deg, #f8e08a, var(--gold) 55%, #cf9d2e);
+  color: var(--on-gold);
+  font-weight: 800;
+  box-shadow: 0 3px 12px -3px rgba(230, 185, 63, 0.9);
+}
+
+.tag.best {
+  background: var(--blue);
+  color: var(--on-blue);
+}
+
+.sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
 button.cell.on {
   border-color: var(--gold);
   box-shadow: 0 0 0 3px var(--ring);

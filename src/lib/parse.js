@@ -2,6 +2,10 @@ const SCORE_RE = /(\d+(?:[.,]\d+)?)\s*\/\s*(\d+(?:[.,]\d+)?)/g
 const PERCENT_RE = /(\d+(?:[.,]\d+)?)\s*%/
 const KM_RE = /(\d+(?:[.,]\d+)?)\s*km(?![\p{L}\p{N}])/iu
 
+const FINAL_RE = /\bscore\s*[:=]?\s*(\d+(?:[.,]\d+)?)/i
+// Adresa na početku reda ("www.maptap.gg November 18"): hvata se ime domena.
+const SITE_RE = /^(?:https?:\/\/)?(?:www\.)?([\p{L}\p{N}-]+)\.[a-z]{2,}(?![\p{L}\p{N}])/iu
+
 const num = (s) => Number(String(s).replace(',', '.'))
 
 // Poređenje imena bez razmaka, interpunkcije i velikih slova ("Size It Up" = "SizeItUp").
@@ -27,9 +31,10 @@ export function parseScore(text, defaultMax) {
   }
   // Kilometri bez maksimuma ("Докле, бре? #16 · 659 km"): maksimum je podrazumijevani
   // maksimum igrice, a ako ga nema ili je premašen, prva veća hiljada.
-  const km = t.match(KM_RE)
-  if (km) {
-    const score = num(km[1])
+  // Isto važi za "Final score: 939" (maptap.gg), gdje se maksimum takođe ne ispisuje.
+  const open = t.match(KM_RE) || t.match(FINAL_RE)
+  if (open) {
+    const score = num(open[1])
     const max = defaultMax && score <= defaultMax ? Number(defaultMax) : Math.max(1, Math.ceil(score / 1000)) * 1000
     return { score, max }
   }
@@ -57,6 +62,8 @@ export function detectGame(text, games) {
 // Naslov bloka: prvi red do broja zagonetke ili separatora ("Eraly #33 · ..." -> "Eraly").
 function titleOf(paragraph) {
   const first = paragraph.split('\n')[0].trim()
+  const site = first.match(SITE_RE)
+  if (site) return site[1].slice(0, 40)
   const cut = first.split(/#\d|\s[·–|-]\s/)[0].trim()
   return (cut || first).slice(0, 40)
 }
@@ -74,7 +81,8 @@ function matchGame(title, raw, games) {
 
 // Dijeli zalijepljeni tekst na blokove, po jedan za svaku igricu.
 // Novi blok počinje pasusom čiji prvi red sadrži broj zagonetke ("Reborder #321"),
-// kome je drugi red samo taj broj ("Size It Up" / "#100"), ili koji počinje imenom poznate igrice.
+// kome je drugi red samo taj broj ("Size It Up" / "#100"), ili koji počinje imenom poznate igrice
+// (i kad je ono dio adrese: "www.maptap.gg November 18").
 // Vraća [{ title, raw, score, max, game }]; score je null kad rezultat nije prepoznat.
 export function splitShare(text, games) {
   const paragraphs = String(text ?? '')
@@ -88,8 +96,10 @@ export function splitShare(text, games) {
     const lines = p.split('\n').map((l) => l.trim())
     if (/\p{L}.*#\d+/u.test(lines[0])) return true
     if (lines[1] && /^#\d+$/.test(lines[1]) && /\p{L}/u.test(lines[0])) return true
-    const first = norm(lines[0])
-    return keys.some((k) => first.startsWith(k))
+    const site = lines[0].match(SITE_RE)
+    const first = norm(site ? site[1] : lines[0])
+    // Igrica može biti nazvana i po cijeloj adresi ("maptap.gg").
+    return keys.some((k) => first.startsWith(k) || (site && k.startsWith(first)))
   }
 
   const segments = []

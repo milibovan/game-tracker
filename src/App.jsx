@@ -6,7 +6,7 @@ import { AVATARS } from './lib/avatars.js'
 // Mapa id -> igrač, da Avatar svuda može da pronađe izabranu sličicu.
 const PlayersCtx = createContext(new Map())
 import { fmt, norm, parseScore, splitShare } from './lib/parse.js'
-import { pct, rankDay, rankGame, strengths } from './lib/ranking.js'
+import { bestByGame, pct, rankDay, rankGame, strengths } from './lib/ranking.js'
 
 const SESSION_KEY = 'leaderboard-session'
 
@@ -72,12 +72,10 @@ function Tracker() {
   const [draft, setDraft] = useState(null) // rezultat koji se uređuje u formi
   const [loadError, setLoadError] = useState('')
   const [page, setPage] = useState('board') // 'board' ili 'profiles'
-  const [allScores, setAllScores] = useState(null) // svi rezultati, za profile
+  const [allScores, setAllScores] = useState(null) // svi rezultati, za profile i rekorde
   const [focus, setFocus] = useState(null) // igrač istaknut na profilima
   const dayRef = useRef(day)
   dayRef.current = day
-  const pageRef = useRef(page)
-  pageRef.current = page
 
   // Svi rezultati (bez share teksta), učitani u stranicama od po 1000 redova.
   const loadAllScores = useCallback(async () => {
@@ -129,11 +127,12 @@ function Tracker() {
   useEffect(() => {
     loadPlayers()
     loadGames()
+    loadAllScores()
     const channel = supabase
       .channel('leaderboard')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, () => {
         loadScores()
-        if (pageRef.current === 'profiles') loadAllScores()
+        loadAllScores()
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, loadGames)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, loadPlayers)
@@ -142,10 +141,6 @@ function Tracker() {
       supabase.removeChannel(channel)
     }
   }, [loadPlayers, loadGames, loadScores, loadAllScores])
-
-  useEffect(() => {
-    if (page === 'profiles') loadAllScores()
-  }, [page, loadAllScores])
 
   const openProfile = (playerId) => {
     setFocus(playerId)
@@ -190,12 +185,22 @@ function Tracker() {
     selected &&
     scores.find((s) => s.player_id === selected.playerId && s.game_id === selected.gameId)
 
+  // Isticanje rezultata: 'record' = najbolji ikada u toj igrici, 'best' = najbolji tog dana.
+  const dayBest = useMemo(() => bestByGame(scores), [scores])
+  const records = useMemo(() => bestByGame(allScores || []), [allScores])
+  const markOf = (entry) => {
+    const p = pct(entry)
+    const hits = (map) => map.has(entry.game_id) && p >= map.get(entry.game_id) - 1e-9
+    return hits(records) ? 'record' : hits(dayBest) ? 'best' : ''
+  }
+
   const removeScore = async (entry) => {
     const err = await callRpc('delete_score', { p_game: entry.game_id, p_day: entry.day })
     if (err) setLoadError(err)
     else {
       setSelected(null)
       loadScores()
+      loadAllScores()
     }
   }
 
@@ -294,10 +299,12 @@ function Tracker() {
           selected={selected}
           onSelect={setSelected}
           onPlayer={openProfile}
+          markOf={markOf}
         />
       ) : (
         <GameTable
           rows={rankGame(scores, activeView)}
+          markOf={markOf}
           playerName={playerName}
           me={session?.id}
           selected={selected}
@@ -318,6 +325,9 @@ function Tracker() {
           </div>
           <p>
             {fmt(selectedEntry.score)}/{fmt(selectedEntry.max_score)} ({fmt(pct(selectedEntry))}%)
+            {markOf(selectedEntry) && (
+              <em className={`tag ${markOf(selectedEntry)}`}>{MARKS[markOf(selectedEntry)]}</em>
+            )}
           </p>
           {selectedEntry.raw_text ? (
             <pre className="raw">{selectedEntry.raw_text}</pre>
@@ -347,6 +357,7 @@ function Tracker() {
           onSaved={() => {
             setDraft(null)
             loadScores()
+            loadAllScores()
           }}
           onGameAdded={loadGames}
         />
@@ -361,6 +372,11 @@ function Tracker() {
           rezultatu tog dana (najbolji dobija 100). Propuštene igrice se ne računaju. Ocjena dana
           je prosjek tih rezultata, blago povučen ka prosjeku grupe, tako da neko sa jednom
           odigranom igricom ne pretekne nekoga ko je bio odličan u više njih.
+        </p>
+        <p>
+          Plavo obojen rezultat je najbolji tog dana u svojoj igrici, a zlatni sa zvjezdicom je
+          najbolji ikada zabilježen u toj igrici. Ističe se samo kad igrica ima bar dva rezultata
+          za poređenje.
         </p>
       </details>
         </>
@@ -506,16 +522,21 @@ function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) 
   )
 }
 
-function ScoreCell({ entry, isSelected, onSelect }) {
+const MARKS = { record: '★ Najbolji rezultat ikada', best: 'Najbolji rezultat dana' }
+
+function ScoreCell({ entry, mark, isSelected, onSelect }) {
   if (!entry) return <td className="muted">–</td>
+  const note = entry.raw_text || 'Ručni unos'
   return (
     <td>
       <button
-        className={`cell ${isSelected ? 'on' : ''} ${entry.raw_text ? 'has-raw' : ''}`}
-        title={entry.raw_text || 'Ručni unos'}
+        className={`cell ${mark} ${isSelected ? 'on' : ''} ${entry.raw_text ? 'has-raw' : ''}`}
+        title={mark ? `${MARKS[mark]}\n${note}` : note}
         onClick={() => onSelect({ playerId: entry.player_id, gameId: entry.game_id })}
       >
+        {mark === 'record' && <span aria-hidden="true">★ </span>}
         {fmt(entry.score)}/{fmt(entry.max_score)}
+        {mark && <span className="sr"> ({MARKS[mark].replace('★ ', '')})</span>}
       </button>
     </td>
   )
@@ -524,7 +545,7 @@ function ScoreCell({ entry, isSelected, onSelect }) {
 const isSel = (selected, entry) =>
   !!selected && selected.playerId === entry.player_id && selected.gameId === entry.game_id
 
-function TotalTable({ rows, games, playerName, me, selected, onSelect, onPlayer }) {
+function TotalTable({ rows, games, playerName, me, selected, onSelect, onPlayer, markOf }) {
   if (!rows.length) return <p className="muted empty">Nema rezultata za ovaj dan.</p>
   return (
     <div className="scroll">
@@ -559,6 +580,7 @@ function TotalTable({ rows, games, playerName, me, selected, onSelect, onPlayer 
                 <ScoreCell
                   key={g.id}
                   entry={r.entries[g.id]}
+                  mark={r.entries[g.id] ? markOf(r.entries[g.id]) : ''}
                   isSelected={!!r.entries[g.id] && isSel(selected, r.entries[g.id])}
                   onSelect={onSelect}
                 />
@@ -574,7 +596,7 @@ function TotalTable({ rows, games, playerName, me, selected, onSelect, onPlayer 
   )
 }
 
-function GameTable({ rows, playerName, me, selected, onSelect, onPlayer }) {
+function GameTable({ rows, playerName, me, selected, onSelect, onPlayer, markOf }) {
   if (!rows.length) return <p className="muted empty">Niko još nije unio ovu igricu za ovaj dan.</p>
   return (
     <div className="scroll">
@@ -599,7 +621,7 @@ function GameTable({ rows, playerName, me, selected, onSelect, onPlayer }) {
                   {playerName(r.playerId)}
                 </button>
               </td>
-              <ScoreCell entry={r.entry} isSelected={isSel(selected, r.entry)} onSelect={onSelect} />
+              <ScoreCell entry={r.entry} mark={markOf(r.entry)} isSelected={isSel(selected, r.entry)} onSelect={onSelect} />
               <td>{fmt(r.pct)}%</td>
             </tr>
           ))}

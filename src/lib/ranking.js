@@ -31,6 +31,23 @@ export function rankGame(scores, gameId) {
   return withRanks(rows, (r) => r.pct)
 }
 
+// Najbolji procenat po igrici: Map(gameId -> procenat). Računa se samo kad igrica ima
+// bar dva rezultata, jer jedini rezultat nema s čim da se poredi. Od skupa rezultata
+// zavisi šta se dobija: rezultati jednog dana daju najbolje tog dana, a svi rezultati
+// rekorde svih vremena.
+export function bestByGame(scores) {
+  const agg = new Map()
+  for (const s of scores) {
+    const a = agg.get(s.game_id) || { n: 0, best: 0 }
+    a.n += 1
+    a.best = Math.max(a.best, pct(s))
+    agg.set(s.game_id, a)
+  }
+  const out = new Map()
+  for (const [gameId, a] of agg) if (a.n >= 2 && a.best > 0) out.set(gameId, a.best)
+  return out
+}
+
 // Jačina igrača po igricama, za profile. Računa se iz svih rezultata na sajtu.
 //
 // Za svaku igricu: prosjek igrača se dijeli prosjekom najboljeg igrača u toj igrici
