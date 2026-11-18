@@ -1,29 +1,64 @@
+/* Kolorit i pokret po uzoru na bozur021.rs: topla svijetla podloga, tamnoplava,
+   plava i zlatni akcenat; fontovi Archivo (naslovi i brojevi) i Manrope (tekst). */
+
 :root {
-  --bg: #f6f6f4;
-  --panel: #ffffff;
-  --text: #1c1c1a;
-  --muted: #6b6b66;
-  --line: #deded8;
-  --accent: #2456c7;
-  --accent-text: #ffffff;
-  --me: #eef3ff;
-  --danger: #b3261e;
-  --ok: #1d7a3c;
+  --display: 'Archivo', 'Segoe UI', Helvetica, Arial, sans-serif;
+  --body: 'Manrope', 'Segoe UI', Helvetica, Arial, sans-serif;
+
+  --bg: #f7f5ef;
+  --surface: #ffffff;
+  --surface-2: #f3f1ea;
+  --ink: #0f2347;
+  --muted: #4a5672;
+  --line: #e4e0d4;
+  --line-2: #cfc9ba;
+  --head: #0f2347;
+  --on-head: #ffffff;
+  --blue: #1e4fa3;
+  --blue-hover: #173f84;
+  --on-blue: #ffffff;
+  --tint: #edf2fb;
+  --gold: #e6b93f;
+  --gold-soft: #faebc2;
+  --on-gold: #0f2347;
+  --ring: rgba(230, 185, 63, 0.55);
+  --red: #c21e26;
+  --ok: #1f7a45;
+  --low: #9aa6bd;
+  --above: #2e9e5b;
+  --below: #e8a33a;
+  --track: #e9e6dc;
+
+  --r-lg: 20px;
+  --r-md: 14px;
+  --r-sm: 10px;
+  --shadow: 0 1px 2px rgba(15, 35, 71, 0.05), 0 18px 40px -24px rgba(15, 35, 71, 0.35);
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #161615;
-    --panel: #1f1f1d;
-    --text: #ecece8;
-    --muted: #9a9a93;
-    --line: #34342f;
-    --accent: #7aa2ff;
-    --accent-text: #10182b;
-    --me: #1d2740;
-    --danger: #ff8a80;
-    --ok: #6fd08c;
+    --bg: #0b1220;
+    --surface: #131c2e;
+    --surface-2: #1a2540;
+    --ink: #eef2fa;
+    --muted: #a3b0cc;
+    --line: #24304a;
+    --line-2: #34425f;
+    --head: #0a1730;
+    --blue: #3f76d4;
+    --blue-hover: #5488e2;
+    --tint: #1a2742;
+    --gold-soft: #3a3216;
+    --ring: rgba(230, 185, 63, 0.45);
+    --red: #ff7a80;
+    --ok: #6fd69a;
+    --low: #6b7893;
+    --above: #3fbf74;
+    --below: #eeb04a;
+    --track: #24304a;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 18px 40px -24px rgba(0, 0, 0, 0.8);
     color-scheme: dark;
   }
 }
@@ -35,27 +70,101 @@
 body {
   margin: 0;
   background: var(--bg);
-  color: var(--text);
-  font: 15px/1.45 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: var(--ink);
+  font: 500 15px/1.5 var(--body);
 }
 
-.wrap {
-  max-width: 860px;
+/* ---------- Zaglavlje ---------- */
+
+.top {
+  background: var(--head);
+  color: var(--on-head);
+  border-bottom: 4px solid var(--gold);
+}
+
+.top-in {
+  max-width: 1080px;
   margin: 0 auto;
-  padding: 20px 16px 48px;
+  padding: 26px 16px 22px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.brand {
+  animation: fade 0.5s var(--ease) both;
+}
+
+.kicker {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--gold);
+  margin-bottom: 2px;
 }
 
 h1 {
   margin: 0;
-  font-size: 22px;
+  font-family: var(--display);
+  font-stretch: 112%;
+  font-weight: 800;
+  font-size: clamp(30px, 6vw, 46px);
+  line-height: 1.05;
+  letter-spacing: -0.01em;
 }
 
 h2 {
-  margin: 0 0 10px;
-  font-size: 16px;
+  margin: 0 0 12px;
+  font-family: var(--display);
+  font-stretch: 106%;
+  font-weight: 700;
+  font-size: 19px;
 }
 
-.top,
+.who {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.top button.link {
+  color: var(--on-head);
+  opacity: 0.8;
+}
+
+.top button.link:hover {
+  opacity: 1;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 14px 4px 4px;
+  min-height: 0;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--on-head);
+  font-weight: 700;
+}
+
+.chip:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.wrap {
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 20px 16px 64px;
+}
+
+/* ---------- Navigacija ---------- */
+
+.pages,
 .row,
 .daynav,
 .tabs {
@@ -65,28 +174,51 @@ h2 {
   gap: 8px;
 }
 
-.top,
 .between {
   justify-content: space-between;
 }
 
-.who {
-  display: flex;
-  gap: 10px;
-  align-items: center;
+.pages {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  margin-bottom: 20px;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+}
+
+.pages button {
+  border-color: transparent;
+  background: transparent;
+  color: var(--muted);
+}
+
+.pages button.on {
+  background: var(--ink);
+  color: var(--bg);
 }
 
 .daynav {
-  margin: 16px 0 12px;
+  margin-bottom: 14px;
 }
 
 .daylabel {
-  margin-left: 4px;
+  margin-left: 6px;
+  font-weight: 600;
 }
 
 .tabs {
-  margin-bottom: 10px;
+  margin-bottom: 4px;
 }
+
+.tabs button.on {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--bg);
+}
+
+/* ---------- Kontrole ---------- */
 
 button,
 input,
@@ -94,14 +226,45 @@ select,
 textarea {
   font: inherit;
   color: inherit;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  padding: 7px 10px;
+  background: var(--surface);
+  border: 1.5px solid var(--line-2);
+  border-radius: var(--r-sm);
+  padding: 8px 12px;
+  min-height: 40px;
+  transition:
+    background-color 0.26s,
+    border-color 0.26s,
+    color 0.26s,
+    box-shadow 0.26s,
+    transform 0.26s var(--ease);
 }
 
 button {
   cursor: pointer;
+  border-radius: 999px;
+  padding-inline: 16px;
+  font-weight: 700;
+}
+
+button:hover:not(:disabled) {
+  border-color: var(--ink);
+}
+
+button:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+button:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--ring);
 }
 
 button:disabled {
@@ -109,39 +272,43 @@ button:disabled {
   cursor: default;
 }
 
-button.primary,
-.tabs button.on {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-text);
+button.primary {
+  background: var(--blue);
+  border-color: var(--blue);
+  color: var(--on-blue);
+}
+
+button.primary:hover:not(:disabled) {
+  background: var(--blue-hover);
+  border-color: var(--blue-hover);
 }
 
 button.danger {
-  color: var(--danger);
+  color: var(--red);
 }
 
 button.link {
+  min-height: 0;
   border: 0;
   background: none;
   padding: 0;
-  color: var(--accent);
+  border-radius: 4px;
+  color: var(--blue);
+  font-weight: 700;
   text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
-button.cell {
-  padding: 2px 6px;
-  white-space: nowrap;
-}
-
-button.cell.on {
-  border-color: var(--accent);
+@media (prefers-color-scheme: dark) {
+  button.link {
+    color: #8fb4f5;
+  }
 }
 
 textarea {
   width: 100%;
   resize: vertical;
-  margin-bottom: 8px;
-  font-family: inherit;
+  margin-bottom: 10px;
 }
 
 .row input,
@@ -150,68 +317,205 @@ textarea {
   min-width: 0;
 }
 
+/* ---------- Avatar i ikonice ---------- */
+
+.avatar {
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--tint);
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--line-2);
+  font-size: 18px;
+  line-height: 1;
+}
+
+.avatar.letter {
+  background: var(--blue);
+  color: var(--on-blue);
+  font: 800 14px/1 var(--display);
+}
+
+.gicon {
+  display: inline-block;
+  width: 1.25em;
+  height: 1.25em;
+  line-height: 1.25em;
+  text-align: center;
+  vertical-align: -0.2em;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.gicon.letter {
+  background: var(--blue);
+  color: var(--on-blue);
+  font-size: 0.8em;
+  font-weight: 800;
+  font-style: normal;
+}
+
+/* ---------- Tabela: svaki igrač je zasebna kartica-red ---------- */
+
+.scroll {
+  overflow-x: auto;
+  margin-inline: -4px;
+  padding-inline: 4px;
+}
+
+table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+th,
+td {
+  padding: 12px 9px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+th {
+  padding-block: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--muted);
+}
+
+tbody tr {
+  animation: rise 0.45s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 60ms);
+}
+
+tbody td {
+  background: var(--surface);
+  border-block: 1px solid var(--line);
+  transition: background-color 0.26s;
+}
+
+tbody td:first-child {
+  border-left: 1px solid var(--line);
+  border-radius: var(--r-md) 0 0 var(--r-md);
+}
+
+tbody td:last-child {
+  border-right: 1px solid var(--line);
+  border-radius: 0 var(--r-md) var(--r-md) 0;
+}
+
+tbody tr:hover td {
+  background: var(--tint);
+}
+
+tr.me td {
+  border-color: var(--gold);
+}
+
+tr.r1 td,
+tr.r1:hover td {
+  background: color-mix(in srgb, var(--gold) 16%, var(--surface));
+  border-color: color-mix(in srgb, var(--gold) 60%, var(--line));
+}
+
+td.rank {
+  width: 1%;
+}
+
+td.rank span {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  font: 800 16px/1 var(--display);
+  color: var(--muted);
+}
+
+tr.r1 td.rank span {
+  background: var(--gold);
+  color: var(--on-gold);
+  animation: pop 0.5s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 60ms + 0.2s);
+}
+
+tr.r2 td.rank span,
+tr.r3 td.rank span {
+  background: var(--tint);
+  color: var(--ink);
+}
+
+td.rating {
+  font: 800 20px/1 var(--display);
+  font-stretch: 106%;
+}
+
+button.player {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: none;
+  font-weight: 700;
+}
+
+button.player:hover {
+  color: var(--blue);
+}
+
+button.cell {
+  min-height: 0;
+  padding: 3px 10px;
+  border-color: transparent;
+  background: var(--surface-2);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+button.cell.has-raw {
+  border-color: var(--line-2);
+}
+
+button.cell.on {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+/* ---------- Paneli ---------- */
+
 .panel {
-  background: var(--panel);
+  background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 14px;
-  margin-top: 14px;
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  margin-top: 18px;
+  animation: fade 0.4s var(--ease) both;
 }
 
 .panel p {
   margin: 8px 0;
 }
 
-.scroll {
-  overflow-x: auto;
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
-}
-
-th,
-td {
-  padding: 8px 10px;
-  text-align: left;
-  border-bottom: 1px solid var(--line);
-  white-space: nowrap;
-}
-
-th {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.03em;
-}
-
-tbody tr:last-child td {
-  border-bottom: 0;
-}
-
-tr.me {
-  background: var(--me);
-}
-
 .raw {
-  margin: 8px 0;
-  padding: 10px;
-  background: var(--bg);
-  border-radius: 6px;
+  margin: 10px 0;
+  padding: 12px;
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font: 14px/1.5 system-ui, 'Segoe UI Emoji', 'Apple Color Emoji', sans-serif;
+  font: 14px/1.5 var(--body), 'Segoe UI Emoji', 'Apple Color Emoji';
 }
 
 .batch {
   list-style: none;
-  margin: 0 0 10px;
+  margin: 0 0 12px;
   padding: 0;
 }
 
@@ -220,48 +524,258 @@ tr.me {
   grid-template-columns: 1fr auto auto;
   gap: 12px;
   align-items: center;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--line-2);
   font-variant-numeric: tabular-nums;
+  animation: rise 0.35s var(--ease) both;
 }
 
 .tag {
   margin-left: 8px;
   font-size: 12px;
   font-style: normal;
-  color: var(--muted);
-  border: 1px solid var(--line);
-  border-radius: 4px;
-  padding: 0 5px;
+  font-weight: 700;
+  color: var(--on-gold);
+  background: var(--gold);
+  border-radius: 999px;
+  padding: 1px 8px;
 }
+
+/* ---------- Profili ---------- */
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(290px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  position: relative;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--r-lg);
+  box-shadow: var(--shadow);
+  padding: 22px 20px 18px;
+  animation: rise 0.5s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 70ms);
+  transition: transform 0.26s var(--ease);
+}
+
+.card:hover {
+  transform: translateY(-3px);
+}
+
+/* Traka u boji na vrhu kartice, iscrtava se slijeva. */
+.card::before {
+  content: '';
+  position: absolute;
+  inset: 0 0 auto 0;
+  height: 5px;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
+  background: var(--blue);
+  transform-origin: left;
+  animation: grow 0.7s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 0.15s);
+}
+
+.card.focus::before {
+  background: var(--gold);
+}
+
+.card header {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid var(--line);
+}
+
+.card .avatar {
+  width: 52px;
+  height: 52px;
+  font-size: 30px;
+}
+
+.card .avatar.letter {
+  font-size: 22px;
+}
+
+.card h2 {
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+  font-size: 24px;
+  font-stretch: 110%;
+  font-weight: 800;
+  overflow-wrap: anywhere;
+}
+
+.overall {
+  text-align: right;
+  line-height: 1.1;
+}
+
+.overall strong {
+  display: block;
+  font: 800 30px/1 var(--display);
+  font-stretch: 108%;
+  font-variant-numeric: tabular-nums;
+  animation: roll 0.5s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 0.25s);
+}
+
+.overall span {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.picker {
+  margin: 10px 0 0;
+}
+
+.avatars {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(42px, 1fr));
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.avatars button {
+  min-height: 0;
+  aspect-ratio: 1;
+  padding: 0;
+  border-radius: 50%;
+  border-color: var(--line);
+  background: var(--surface-2);
+  font-size: 22px;
+  line-height: 1;
+}
+
+.avatars button:hover {
+  transform: scale(1.12);
+}
+
+.avatars button.on {
+  border-color: var(--gold);
+  background: var(--gold-soft);
+  box-shadow: 0 0 0 3px var(--ring);
+  animation: pop 0.35s var(--ease);
+}
+
+.metric {
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr) 2.4em;
+  gap: 3px 10px;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.metric:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.mname {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mval {
+  text-align: right;
+  font: 800 17px/1 var(--display);
+  font-variant-numeric: tabular-nums;
+}
+
+.metric small {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.bar {
+  position: relative;
+  height: 10px;
+  background: var(--track);
+  border-radius: 999px;
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: 999px;
+  transform-origin: left;
+  animation: grow 0.8s var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 70ms + 0.3s);
+}
+
+.fill.above {
+  background: var(--above);
+}
+
+.fill.below {
+  background: var(--below);
+}
+
+.fill.even {
+  background: var(--low);
+}
+
+.mark {
+  position: absolute;
+  top: -4px;
+  bottom: -4px;
+  width: 3px;
+  margin-left: -1px;
+  background: var(--ink);
+  border-radius: 2px;
+}
+
+/* ---------- Ostalo ---------- */
 
 .muted {
   color: var(--muted);
 }
 
 .empty {
-  padding: 18px 0;
+  padding: 28px 0;
+  text-align: center;
 }
 
 .error {
-  color: var(--danger);
+  color: var(--red);
+  font-weight: 600;
+  animation: shake 0.4s;
 }
 
 .ok {
   color: var(--ok);
+  font-weight: 700;
+  animation: fade 0.4s var(--ease) both;
 }
 
 details {
-  margin-top: 12px;
+  margin-top: 16px;
 }
 
 details summary {
   cursor: pointer;
   color: var(--muted);
+  font-weight: 600;
+}
+
+details summary:hover {
+  color: var(--ink);
+}
+
+details[open] > :not(summary) {
+  animation: fade 0.3s var(--ease) both;
 }
 
 details .row {
-  margin-top: 8px;
+  margin-top: 10px;
 }
 
 .help p {
@@ -270,7 +784,65 @@ details .row {
 }
 
 code {
-  background: var(--bg);
-  padding: 1px 5px;
+  background: var(--surface-2);
+  padding: 1px 6px;
   border-radius: 4px;
+}
+
+/* ---------- Animacije ---------- */
+
+@keyframes fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+}
+
+@keyframes roll {
+  from {
+    opacity: 0;
+    transform: translateY(0.7em);
+  }
+}
+
+@keyframes grow {
+  from {
+    transform: scaleX(0);
+  }
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0);
+  }
+  70% {
+    transform: scale(1.15);
+  }
+}
+
+@keyframes shake {
+  20%,
+  60% {
+    transform: translateX(-5px);
+  }
+  40%,
+  80% {
+    transform: translateX(5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+  }
 }

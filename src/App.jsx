@@ -1,7 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { supabase } from './lib/supabase.js'
+import { gameIcon } from './lib/icons.js'
+import { AVATARS } from './lib/avatars.js'
+
+// Mapa id -> igrač, da Avatar svuda može da pronađe izabranu sličicu.
+const PlayersCtx = createContext(new Map())
 import { fmt, norm, parseScore, splitShare } from './lib/parse.js'
-import { pct, rankDay, rankGame } from './lib/ranking.js'
+import { pct, rankDay, rankGame, strengths } from './lib/ranking.js'
 
 const SESSION_KEY = 'leaderboard-session'
 
@@ -66,11 +71,38 @@ function Tracker() {
   const [selected, setSelected] = useState(null) // { playerId, gameId }
   const [draft, setDraft] = useState(null) // rezultat koji se uređuje u formi
   const [loadError, setLoadError] = useState('')
+  const [page, setPage] = useState('board') // 'board' ili 'profiles'
+  const [allScores, setAllScores] = useState(null) // svi rezultati, za profile
+  const [focus, setFocus] = useState(null) // igrač istaknut na profilima
   const dayRef = useRef(day)
   dayRef.current = day
+  const pageRef = useRef(page)
+  pageRef.current = page
+
+  // Svi rezultati (bez share teksta), učitani u stranicama od po 1000 redova.
+  const loadAllScores = useCallback(async () => {
+    const rows = []
+    for (let from = 0; ; from += 1000) {
+      const { data, error } = await supabase
+        .from('scores')
+        .select('player_id,game_id,score,max_score')
+        .order('day')
+        .order('player_id')
+        .order('game_id')
+        .range(from, from + 999)
+      if (error) return setLoadError(error.message)
+      rows.push(...data)
+      if (data.length < 1000) break
+    }
+    setAllScores(rows)
+  }, [])
 
   const loadPlayers = useCallback(async () => {
-    const { data, error } = await supabase.from('players').select('id,name').order('name')
+    let { data, error } = await supabase.from('players').select('id,name,avatar').order('name')
+    // Kolona avatar ne postoji dok se ne pokrene supabase/avatars.sql; do tada bez avatara.
+    if (error && error.code === '42703') {
+      ;({ data, error } = await supabase.from('players').select('id,name').order('name'))
+    }
     if (error) setLoadError(error.message)
     else setPlayers(data)
   }, [])
@@ -99,14 +131,26 @@ function Tracker() {
     loadGames()
     const channel = supabase
       .channel('leaderboard')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, loadScores)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'scores' }, () => {
+        loadScores()
+        if (pageRef.current === 'profiles') loadAllScores()
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'games' }, loadGames)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, loadPlayers)
       .subscribe()
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [loadPlayers, loadGames, loadScores])
+  }, [loadPlayers, loadGames, loadScores, loadAllScores])
+
+  useEffect(() => {
+    if (page === 'profiles') loadAllScores()
+  }, [page, loadAllScores])
+
+  const openProfile = (playerId) => {
+    setFocus(playerId)
+    setPage('profiles')
+  }
 
   useEffect(() => {
     setScores([])
@@ -136,10 +180,8 @@ function Tracker() {
     return null
   }
 
-  const playerName = useMemo(() => {
-    const map = new Map(players.map((p) => [p.id, p.name]))
-    return (id) => map.get(id) || '?'
-  }, [players])
+  const playerMap = useMemo(() => new Map(players.map((p) => [p.id, p])), [players])
+  const playerName = (id) => playerMap.get(id)?.name || '?'
   const gameById = useMemo(() => new Map(games.map((g) => [g.id, g])), [games])
 
   const playedGames = games.filter((g) => scores.some((s) => s.game_id === g.id))
@@ -158,19 +200,64 @@ function Tracker() {
   }
 
   return (
-    <main className="wrap">
+    <PlayersCtx.Provider value={playerMap}>
       <header className="top">
-        <h1>Leaderboard</h1>
-        {session && (
-          <div className="who">
-            <strong>{session.name}</strong>
-            <button className="link" onClick={() => saveSession(null)}>
-              Odjava
-            </button>
+        <div className="top-in">
+          <div className="brand">
+            <span className="kicker">Dnevne igrice</span>
+            <h1>Leaderboard</h1>
           </div>
-        )}
+          {session && (
+            <div className="who">
+              <button className="chip" onClick={() => openProfile(session.id)}>
+                <Avatar id={session.id} name={session.name} />
+                {session.name}
+              </button>
+              <button className="link" onClick={() => saveSession(null)}>
+                Odjava
+              </button>
+            </div>
+          )}
+        </div>
       </header>
+    <main className="wrap">
 
+      <nav className="pages">
+        <button className={page === 'board' ? 'on' : ''} onClick={() => setPage('board')}>
+          Dnevni poredak
+        </button>
+        <button
+          className={page === 'profiles' ? 'on' : ''}
+          onClick={() => {
+            setFocus(session?.id || null)
+            setPage('profiles')
+          }}
+        >
+          Profili
+        </button>
+      </nav>
+
+      {loadError && (
+        <p className="error" role="alert">
+          {loadError}{' '}
+          <button className="link" onClick={() => setLoadError('')}>
+            zatvori
+          </button>
+        </p>
+      )}
+
+      {page === 'profiles' ? (
+        <Profiles
+          players={players}
+          games={games}
+          allScores={allScores}
+          me={session?.id}
+          focus={focus}
+          callRpc={callRpc}
+          onChanged={loadPlayers}
+        />
+      ) : (
+        <>
       <section className="daynav">
         <button onClick={() => setDay(shiftDay(day, -1))} aria-label="Prethodni dan">
           ←
@@ -183,15 +270,6 @@ function Tracker() {
         <span className="muted daylabel">{prettyDay(day)}</span>
       </section>
 
-      {loadError && (
-        <p className="error" role="alert">
-          {loadError}{' '}
-          <button className="link" onClick={() => setLoadError('')}>
-            zatvori
-          </button>
-        </p>
-      )}
-
       <nav className="tabs">
         <button className={activeView === 'all' ? 'on' : ''} onClick={() => setView('all')}>
           Ukupno
@@ -202,7 +280,7 @@ function Tracker() {
             className={activeView === g.id ? 'on' : ''}
             onClick={() => setView(g.id)}
           >
-            {g.name}
+            <GameIcon name={g.name} /> {g.name}
           </button>
         ))}
       </nav>
@@ -215,6 +293,7 @@ function Tracker() {
           me={session?.id}
           selected={selected}
           onSelect={setSelected}
+          onPlayer={openProfile}
         />
       ) : (
         <GameTable
@@ -223,6 +302,7 @@ function Tracker() {
           me={session?.id}
           selected={selected}
           onSelect={setSelected}
+          onPlayer={openProfile}
         />
       )}
 
@@ -283,7 +363,146 @@ function Tracker() {
           odigranom igricom ne pretekne nekoga ko je bio odličan u više njih.
         </p>
       </details>
+        </>
+      )}
     </main>
+    </PlayersCtx.Provider>
+  )
+}
+
+function Avatar({ id, name }) {
+  const player = useContext(PlayersCtx).get(id)
+  const label = player?.name ?? name
+  if (player?.avatar) {
+    return (
+      <span className="avatar" aria-hidden="true">
+        {player.avatar}
+      </span>
+    )
+  }
+  return (
+    <span className="avatar letter" aria-hidden="true">
+      {(String(label).trim()[0] || '?').toUpperCase()}
+    </span>
+  )
+}
+
+function GameIcon({ name }) {
+  const icon = gameIcon(name)
+  if (icon.url) return <img className="gicon" src={icon.url} alt="" />
+  return (
+    <span className={`gicon ${icon.letter ? 'letter' : ''}`} aria-hidden="true">
+      {icon.emoji || icon.letter}
+    </span>
+  )
+}
+
+// Boja trake: iznad prosjeka grupe, ispod njega, ili na prosjeku (razlika manja od 1).
+const level = (strength, groupAvg) =>
+  Math.abs(strength - groupAvg) < 1 ? 'even' : strength > groupAvg ? 'above' : 'below'
+
+function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) {
+  const stats = useMemo(() => strengths(allScores || []), [allScores])
+  const [avatarError, setAvatarError] = useState('')
+
+  const pickAvatar = async (avatar) => {
+    setAvatarError('')
+    const err = await callRpc('set_avatar', { p_avatar: avatar })
+    if (err) {
+      return setAvatarError(
+        /set_avatar|schema cache/i.test(err)
+          ? 'Avatari još nisu uključeni u bazi: pokreni supabase/avatars.sql u Supabase SQL Editoru.'
+          : err,
+      )
+    }
+    onChanged()
+  }
+  if (!allScores) return <p className="muted empty">Učitavanje…</p>
+
+  const order = (p) => (p.id === focus ? 0 : p.id === me ? 1 : 2)
+  const sorted = [...players].sort(
+    (a, b) =>
+      order(a) - order(b) ||
+      (stats.byPlayer.get(b.id)?.overall ?? -1) - (stats.byPlayer.get(a.id)?.overall ?? -1),
+  )
+
+  return (
+    <>
+      <div className="cards">
+        {sorted.map((p, i) => {
+          const profile = stats.byPlayer.get(p.id)
+          const played = games.filter((g) => profile?.games[g.id])
+          return (
+            <article key={p.id} className={`card ${p.id === focus ? 'focus' : ''}`} style={{ '--i': i }}>
+              <header>
+                <Avatar id={p.id} name={p.name} />
+                <h2>{p.name}</h2>
+                {profile && (
+                  <div className="overall">
+                    <strong>{fmt(profile.overall, 0)}</strong>
+                    <span>ukupna jačina</span>
+                  </div>
+                )}
+              </header>
+              {p.id === me && (
+                <details className="picker">
+                  <summary>Promijeni avatar</summary>
+                  <div className="avatars">
+                    {AVATARS.map((a) => (
+                      <button
+                        key={a}
+                        type="button"
+                        className={a === p.avatar ? 'on' : ''}
+                        aria-label={`Avatar ${a}`}
+                        aria-pressed={a === p.avatar}
+                        onClick={() => pickAvatar(a)}
+                      >
+                        {a}
+                      </button>
+                    ))}
+                  </div>
+                  {avatarError && <p className="error">{avatarError}</p>}
+                </details>
+              )}
+              {!profile && <p className="muted">Još nema rezultata.</p>}
+              {played.map((g) => {
+                const s = profile.games[g.id]
+                const group = stats.byGame.get(g.id)
+                return (
+                  <div key={g.id} className="metric">
+                    <span className="mname">
+                      <GameIcon name={g.name} /> {g.name}
+                    </span>
+                    <span
+                      className="bar"
+                      role="img"
+                      aria-label={`Jačina ${fmt(s.strength, 0)} od 100, prosjek grupe ${fmt(group.groupAvg, 0)}`}
+                    >
+                      <span className={`fill ${level(s.strength, group.groupAvg)}`} style={{ width: `${s.strength}%` }} />
+                      <span className="mark" style={{ left: `${group.groupAvg}%` }} />
+                    </span>
+                    <strong className="mval">{fmt(s.strength, 0)}</strong>
+                    <small>
+                      {s.isBest ? '★ najbolji na sajtu · ' : ''}prosjek {fmt(s.avgScore)} · odigrano{' '}
+                      {s.n}× · grupa {fmt(group.groupAvg, 0)}
+                    </small>
+                  </div>
+                )
+              })}
+            </article>
+          )
+        })}
+      </div>
+      <details className="help">
+        <summary>Kako se računa jačina?</summary>
+        <p>
+          Za svaku igricu tvoj prosječan rezultat se poredi sa prosjekom najboljeg igrača na sajtu
+          u toj igrici, koji dobija 100. Mogući maksimum igrice se ne gleda: ako je maksimum 1000,
+          a najbolji ima prosjek 500, onda je 500 jačina 100. Crtica na traci je prosjek grupe, a
+          ukupna jačina je prosjek tvojih igrica.
+        </p>
+      </details>
+    </>
   )
 }
 
@@ -292,12 +511,11 @@ function ScoreCell({ entry, isSelected, onSelect }) {
   return (
     <td>
       <button
-        className={`cell ${isSelected ? 'on' : ''}`}
+        className={`cell ${isSelected ? 'on' : ''} ${entry.raw_text ? 'has-raw' : ''}`}
         title={entry.raw_text || 'Ručni unos'}
         onClick={() => onSelect({ playerId: entry.player_id, gameId: entry.game_id })}
       >
         {fmt(entry.score)}/{fmt(entry.max_score)}
-        {entry.raw_text ? ' 📋' : ''}
       </button>
     </td>
   )
@@ -306,7 +524,7 @@ function ScoreCell({ entry, isSelected, onSelect }) {
 const isSel = (selected, entry) =>
   !!selected && selected.playerId === entry.player_id && selected.gameId === entry.game_id
 
-function TotalTable({ rows, games, playerName, me, selected, onSelect }) {
+function TotalTable({ rows, games, playerName, me, selected, onSelect, onPlayer }) {
   if (!rows.length) return <p className="muted empty">Nema rezultata za ovaj dan.</p>
   return (
     <div className="scroll">
@@ -316,7 +534,9 @@ function TotalTable({ rows, games, playerName, me, selected, onSelect }) {
             <th>#</th>
             <th>Igrač</th>
             {games.map((g) => (
-              <th key={g.id}>{g.name}</th>
+              <th key={g.id}>
+                <GameIcon name={g.name} /> {g.name}
+              </th>
             ))}
             <th>Igrica</th>
             <th>Prosjek</th>
@@ -324,10 +544,17 @@ function TotalTable({ rows, games, playerName, me, selected, onSelect }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.playerId} className={r.playerId === me ? 'me' : ''}>
-              <td>{r.rank === 1 ? '🏆' : r.rank}</td>
-              <td>{playerName(r.playerId)}</td>
+          {rows.map((r, i) => (
+            <tr key={r.playerId} className={`r${Math.min(r.rank, 4)} ${r.playerId === me ? 'me' : ''}`} style={{ '--i': i }}>
+              <td className="rank">
+                <span>{r.rank}</span>
+              </td>
+              <td>
+                <button className="player" onClick={() => onPlayer(r.playerId)}>
+                  <Avatar id={r.playerId} name={playerName(r.playerId)} />
+                  {playerName(r.playerId)}
+                </button>
+              </td>
               {games.map((g) => (
                 <ScoreCell
                   key={g.id}
@@ -338,9 +565,7 @@ function TotalTable({ rows, games, playerName, me, selected, onSelect }) {
               ))}
               <td>{r.games}</td>
               <td>{fmt(r.avgPct)}%</td>
-              <td>
-                <strong>{fmt(r.rating)}</strong>
-              </td>
+              <td className="rating">{fmt(r.rating)}</td>
             </tr>
           ))}
         </tbody>
@@ -349,7 +574,7 @@ function TotalTable({ rows, games, playerName, me, selected, onSelect }) {
   )
 }
 
-function GameTable({ rows, playerName, me, selected, onSelect }) {
+function GameTable({ rows, playerName, me, selected, onSelect, onPlayer }) {
   if (!rows.length) return <p className="muted empty">Niko još nije unio ovu igricu za ovaj dan.</p>
   return (
     <div className="scroll">
@@ -363,10 +588,17 @@ function GameTable({ rows, playerName, me, selected, onSelect }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((r) => (
-            <tr key={r.playerId} className={r.playerId === me ? 'me' : ''}>
-              <td>{r.rank === 1 ? '🏆' : r.rank}</td>
-              <td>{playerName(r.playerId)}</td>
+          {rows.map((r, i) => (
+            <tr key={r.playerId} className={`r${Math.min(r.rank, 4)} ${r.playerId === me ? 'me' : ''}`} style={{ '--i': i }}>
+              <td className="rank">
+                <span>{r.rank}</span>
+              </td>
+              <td>
+                <button className="player" onClick={() => onPlayer(r.playerId)}>
+                  <Avatar id={r.playerId} name={playerName(r.playerId)} />
+                  {playerName(r.playerId)}
+                </button>
+              </td>
               <ScoreCell entry={r.entry} isSelected={isSel(selected, r.entry)} onSelect={onSelect} />
               <td>{fmt(r.pct)}%</td>
             </tr>
@@ -603,6 +835,7 @@ function EntryForm({ games, day, draft, defaultGame, callRpc, onSaved, onGameAdd
                 skipped.includes(i) ? null : (
                   <li key={i}>
                     <span>
+                      <GameIcon name={it.game ? it.game.name : it.title} />{' '}
                       <strong>{it.game ? it.game.name : it.title}</strong>
                       {!it.game && it.score !== null && <em className="tag">nova igrica</em>}
                     </span>

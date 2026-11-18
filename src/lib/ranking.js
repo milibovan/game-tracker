@@ -31,6 +31,58 @@ export function rankGame(scores, gameId) {
   return withRanks(rows, (r) => r.pct)
 }
 
+// Jačina igrača po igricama, za profile. Računa se iz svih rezultata na sajtu.
+//
+// Za svaku igricu: prosjek igrača se dijeli prosjekom najboljeg igrača u toj igrici
+// (najbolji = 100). Mjeri se dakle prema drugim igračima, a ne prema mogućem maksimumu:
+// ako je maksimum 1000, a najbolji u grupi ima prosjek 500, onda je 500 jačina 100.
+//
+// Vraća:
+//   byPlayer: Map(playerId -> { overall, games: { gameId: { n, avgScore, strength, isBest } } })
+//   byGame:   Map(gameId -> { groupAvg, players })   groupAvg = prosječna jačina grupe
+export function strengths(scores) {
+  const agg = new Map()
+  for (const s of scores) {
+    if (!agg.has(s.game_id)) agg.set(s.game_id, new Map())
+    const perPlayer = agg.get(s.game_id)
+    if (!perPlayer.has(s.player_id)) perPlayer.set(s.player_id, { n: 0, pctSum: 0, scoreSum: 0 })
+    const a = perPlayer.get(s.player_id)
+    a.n += 1
+    a.pctSum += pct(s)
+    a.scoreSum += Number(s.score)
+  }
+
+  const byPlayer = new Map()
+  const byGame = new Map()
+  for (const [gameId, perPlayer] of agg) {
+    const rows = [...perPlayer].map(([playerId, a]) => ({
+      playerId,
+      n: a.n,
+      avgPct: a.pctSum / a.n,
+      avgScore: a.scoreSum / a.n,
+    }))
+    const best = Math.max(...rows.map((r) => r.avgPct))
+    let sum = 0
+    for (const r of rows) {
+      const strength = best > 0 ? (r.avgPct / best) * 100 : 0
+      sum += strength
+      if (!byPlayer.has(r.playerId)) byPlayer.set(r.playerId, { overall: 0, games: {} })
+      byPlayer.get(r.playerId).games[gameId] = {
+        n: r.n,
+        avgScore: r.avgScore,
+        strength,
+        isBest: rows.length > 1 && best > 0 && r.avgPct >= best - 1e-9,
+      }
+    }
+    byGame.set(gameId, { groupAvg: sum / rows.length, players: rows.length })
+  }
+  for (const p of byPlayer.values()) {
+    const list = Object.values(p.games)
+    p.overall = list.reduce((t, g) => t + g.strength, 0) / list.length
+  }
+  return { byPlayer, byGame }
+}
+
 // Ukupni poredak dana.
 export function rankDay(scores) {
   const byGame = new Map()

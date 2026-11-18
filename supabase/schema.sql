@@ -211,6 +211,32 @@ grant execute on function
   public.add_game(uuid, text, text, numeric)
 to anon, authenticated;
 
+-- ---------- Avatari ----------
+alter table public.players
+  add column if not exists avatar text check (char_length(avatar) <= 16);
+
+-- Igrač mijenja samo svoj avatar; provjerava se PIN.
+create or replace function public.set_avatar(p_player uuid, p_pin text, p_avatar text)
+returns text
+language plpgsql
+security definer
+set search_path = public, extensions
+as $
+declare
+  status text;
+begin
+  status := public.check_pin(p_player, p_pin);
+  if status <> 'ok' then
+    return status;
+  end if;
+  update public.players set avatar = nullif(trim(p_avatar), '') where id = p_player;
+  return 'ok';
+end;
+$;
+
+revoke execute on function public.set_avatar(uuid, text, text) from public;
+grant execute on function public.set_avatar(uuid, text, text) to anon, authenticated;
+
 -- ---------- Realtime ----------
 
 alter publication supabase_realtime add table public.scores, public.games, public.players;
