@@ -247,4 +247,5 @@ insert into public.games (name, default_max) values
   ('Eraly', 700),
   ('Georiddle', null),
   ('SizeItUp', null),
-  ('Dnevni kviz', 10);
+  ('Dnevni kviz', 10),
+  ('Krillion', 700);

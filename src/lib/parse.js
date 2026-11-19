@@ -5,8 +5,20 @@ const KM_RE = /(\d+(?:[.,]\d+)?)\s*km(?![\p{L}\p{N}])/iu
 const FINAL_RE = /\bscore\s*[:=]?\s*(\d+(?:[.,]\d+)?)/i
 // Adresa na početku reda ("www.maptap.gg November 18"): hvata se ime domena.
 const SITE_RE = /^(?:https?:\/\/)?(?:www\.)?([\p{L}\p{N}-]+)\.[a-z]{2,}(?![\p{L}\p{N}])/iu
+// Red na kome je samo broj ("Krillion #127 🦐" / "280").
+const LINE_RE = /^[ \t]*(\d+(?:[.,]\d+)?)[ \t]*$/m
 
 const num = (s) => Number(String(s).replace(',', '.'))
+
+// Maksimumi igrica čiji share tekst ne ispisuje maksimum. Ključ je norm(ime).
+// Krillion: 7 pitanja, najviše 100 poena po pitanju.
+const KNOWN_MAX = {
+  krillion: 700,
+}
+
+// Podrazumijevani maksimum: onaj iz baze, a ako ga nema, poznati maksimum po imenu.
+export const maxOf = (game, title) =>
+  game?.default_max ?? KNOWN_MAX[norm(game?.name ?? title)] ?? null
 
 // Poređenje imena bez razmaka, interpunkcije i velikih slova ("Size It Up" = "SizeItUp").
 export const norm = (s) =>
@@ -31,8 +43,9 @@ export function parseScore(text, defaultMax) {
   }
   // Kilometri bez maksimuma ("Докле, бре? #16 · 659 km"): maksimum je podrazumijevani
   // maksimum igrice, a ako ga nema ili je premašen, prva veća hiljada.
-  // Isto važi za "Final score: 939" (maptap.gg), gdje se maksimum takođe ne ispisuje.
-  const open = t.match(KM_RE) || t.match(FINAL_RE)
+  // Isto važi za "Final score: 939" (maptap.gg) i za broj sam na svom redu (Krillion),
+  // gdje se maksimum takođe ne ispisuje.
+  const open = t.match(KM_RE) || t.match(FINAL_RE) || t.match(LINE_RE)
   if (open) {
     const score = num(open[1])
     const max = defaultMax && score <= defaultMax ? Number(defaultMax) : Math.max(1, Math.ceil(score / 1000)) * 1000
@@ -112,7 +125,7 @@ export function splitShare(text, games) {
   for (const seg of segments) {
     const raw = seg.parts.join('\n\n')
     const game = matchGame(seg.title, raw, games)
-    const parsed = parseScore(raw, game?.default_max)
+    const parsed = parseScore(raw, maxOf(game, seg.title))
     const prev = items[items.length - 1]
     // Potpis na kraju ("Size It Up – Daily Size Guessing Game") pripada prethodnom bloku.
     if (!parsed && prev && sameTitle(seg.title, prev.title)) {

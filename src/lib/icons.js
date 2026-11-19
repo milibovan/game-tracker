@@ -11,6 +11,7 @@ const ICONS = {
   доклебре: '🚌',
   farflung: '✈️',
   reborder: '🗺️',
+  krillion: '🦐',
 }
 
 export function gameIcon(name) {

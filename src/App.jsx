@@ -5,7 +5,7 @@ import { AVATARS } from './lib/avatars.js'
 
 // Mapa id -> igrač, da Avatar svuda može da pronađe izabranu sličicu.
 const PlayersCtx = createContext(new Map())
-import { fmt, norm, parseScore, splitShare } from './lib/parse.js'
+import { fmt, maxOf, norm, parseScore, splitShare } from './lib/parse.js'
 import { bestByGame, pct, rankDay, rankGame, strengths } from './lib/ranking.js'
 
 const SESSION_KEY = 'leaderboard-session'
@@ -734,7 +734,7 @@ function EntryForm({ games, day, draft, defaultGame, callRpc, onSaved, onGameAdd
   }, [draft])
 
   const game = games.find((g) => g.id === gameId)
-  const parsed = parseScore(scoreText, game?.default_max)
+  const parsed = parseScore(scoreText, maxOf(game))
 
   // Zalijepljen tekst sa više igrica odjednom: pregled svih blokova umjesto jednog unosa.
   const items = useMemo(() => splitShare(raw, games), [raw, games])
