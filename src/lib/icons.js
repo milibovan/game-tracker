@@ -12,6 +12,7 @@ const ICONS = {
   farflung: '✈️',
   reborder: '🗺️',
   krillion: '🦐',
+  sumplete: '🧩'
 }
 
 export function gameIcon(name) {

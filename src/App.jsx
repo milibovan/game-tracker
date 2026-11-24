@@ -5,8 +5,11 @@ import { AVATARS } from './lib/avatars.js'
 
 // Mapa id -> igrač, da Avatar svuda može da pronađe izabranu sličicu.
 const PlayersCtx = createContext(new Map())
-import { fmt, maxOf, norm, parseScore, splitShare } from './lib/parse.js'
-import { bestByGame, pct, rankDay, rankGame, strengths } from './lib/ranking.js'
+import { fmt, fmtTime, isTimed, maxOf, norm, parseScore, showScore, splitShare } from './lib/parse.js'
+import { bestByGame, pct, perf, rankDay, rankGame, strengths } from './lib/ranking.js'
+
+// Skup id-jeva vremenskih igrica (manje je bolje), za prikaz i poredak.
+const TimedCtx = createContext(new Set())
 
 const SESSION_KEY = 'leaderboard-session'
 
@@ -186,10 +189,11 @@ function Tracker() {
     scores.find((s) => s.player_id === selected.playerId && s.game_id === selected.gameId)
 
   // Isticanje rezultata: 'record' = najbolji ikada u toj igrici, 'best' = najbolji tog dana.
-  const dayBest = useMemo(() => bestByGame(scores), [scores])
-  const records = useMemo(() => bestByGame(allScores || []), [allScores])
+  const timed = useMemo(() => new Set(games.filter(isTimed).map((g) => g.id)), [games])
+  const dayBest = useMemo(() => bestByGame(scores, timed), [scores, timed])
+  const records = useMemo(() => bestByGame(allScores || [], timed), [allScores, timed])
   const markOf = (entry) => {
-    const p = pct(entry)
+    const p = perf(entry, timed)
     const hits = (map) => map.has(entry.game_id) && p >= map.get(entry.game_id) - 1e-9
     return hits(records) ? 'record' : hits(dayBest) ? 'best' : ''
   }
@@ -206,6 +210,7 @@ function Tracker() {
 
   return (
     <PlayersCtx.Provider value={playerMap}>
+    <TimedCtx.Provider value={timed}>
       <header className="top">
         <div className="top-in">
           <div className="brand">
@@ -292,7 +297,7 @@ function Tracker() {
 
       {activeView === 'all' ? (
         <TotalTable
-          rows={rankDay(scores)}
+          rows={rankDay(scores, timed)}
           games={playedGames}
           playerName={playerName}
           me={session?.id}
@@ -303,7 +308,7 @@ function Tracker() {
         />
       ) : (
         <GameTable
-          rows={rankGame(scores, activeView)}
+          rows={rankGame(scores, activeView, timed)}
           markOf={markOf}
           playerName={playerName}
           me={session?.id}
@@ -324,7 +329,9 @@ function Tracker() {
             </button>
           </div>
           <p>
-            {fmt(selectedEntry.score)}/{fmt(selectedEntry.max_score)} ({fmt(pct(selectedEntry))}%)
+            {timed.has(selectedEntry.game_id)
+              ? fmtTime(selectedEntry.score)
+              : `${showScore(selectedEntry.score, selectedEntry.max_score)} (${fmt(pct(selectedEntry))}%)`}
             {markOf(selectedEntry) && (
               <em className={`tag ${markOf(selectedEntry)}`}>{MARKS[markOf(selectedEntry)]}</em>
             )}
@@ -369,7 +376,10 @@ function Tracker() {
         <summary>Kako se računa ukupni poredak?</summary>
         <p>
           Svaki rezultat se pretvara u procenat, pa se unutar igrice mjeri prema najboljem
-          rezultatu tog dana (najbolji dobija 100). Propuštene igrice se ne računaju. Ocjena dana
+          rezultatu tog dana (najbolji dobija 100). Kod igrica na vrijeme (Sumplete) najbrži
+          dobija 100, a ostali najbrže vrijeme podijeljeno svojim, pa duplo sporiji dobija 50;
+          ako je takvu igricu taj dan igrao samo jedan igrač, ona ne ulazi u ocjenu.
+          Propuštene igrice se ne računaju. Ocjena dana
           je prosjek tih rezultata, blago povučen ka prosjeku grupe, tako da neko sa jednom
           odigranom igricom ne pretekne nekoga ko je bio odličan u više njih.
         </p>
@@ -382,6 +392,7 @@ function Tracker() {
         </>
       )}
     </main>
+    </TimedCtx.Provider>
     </PlayersCtx.Provider>
   )
 }
@@ -418,7 +429,8 @@ const level = (strength, groupAvg) =>
   Math.abs(strength - groupAvg) < 1 ? 'even' : strength > groupAvg ? 'above' : 'below'
 
 function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) {
-  const stats = useMemo(() => strengths(allScores || []), [allScores])
+  const timed = useContext(TimedCtx)
+  const stats = useMemo(() => strengths(allScores || [], timed), [allScores, timed])
   const [avatarError, setAvatarError] = useState('')
 
   const pickAvatar = async (avatar) => {
@@ -499,7 +511,8 @@ function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) 
                     </span>
                     <strong className="mval">{fmt(s.strength, 0)}</strong>
                     <small>
-                      {s.isBest ? '★ najbolji na sajtu · ' : ''}prosjek {fmt(s.avgScore)} · odigrano{' '}
+                      {s.isBest ? '★ najbolji na sajtu · ' : ''}prosjek{' '}
+                      {timed.has(g.id) ? fmtTime(s.avgScore) : fmt(s.avgScore)} · odigrano{' '}
                       {s.n}× · grupa {fmt(group.groupAvg, 0)}
                     </small>
                   </div>
@@ -514,7 +527,8 @@ function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) 
         <p>
           Za svaku igricu tvoj prosječan rezultat se poredi sa prosjekom najboljeg igrača na sajtu
           u toj igrici, koji dobija 100. Mogući maksimum igrice se ne gleda: ako je maksimum 1000,
-          a najbolji ima prosjek 500, onda je 500 jačina 100. Crtica na traci je prosjek grupe, a
+          a najbolji ima prosjek 500, onda je 500 jačina 100. Kod igrica na vrijeme poredi se
+          prosječno vrijeme, pa manje vrijeme daje veću jačinu. Crtica na traci je prosjek grupe, a
           ukupna jačina je prosjek tvojih igrica.
         </p>
       </details>
@@ -525,6 +539,7 @@ function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) 
 const MARKS = { record: '★ Najbolji rezultat ikada', best: 'Najbolji rezultat dana' }
 
 function ScoreCell({ entry, mark, isSelected, onSelect }) {
+  const timed = useContext(TimedCtx)
   if (!entry) return <td className="muted">–</td>
   const note = entry.raw_text || 'Ručni unos'
   return (
@@ -535,7 +550,7 @@ function ScoreCell({ entry, mark, isSelected, onSelect }) {
         onClick={() => onSelect({ playerId: entry.player_id, gameId: entry.game_id })}
       >
         {mark === 'record' && <span aria-hidden="true">★ </span>}
-        {fmt(entry.score)}/{fmt(entry.max_score)}
+        {showScore(entry.score, entry.max_score, timed.has(entry.game_id))}
         {mark && <span className="sr"> ({MARKS[mark].replace('★ ', '')})</span>}
       </button>
     </td>
@@ -586,7 +601,7 @@ function TotalTable({ rows, games, playerName, me, selected, onSelect, onPlayer,
                 />
               ))}
               <td>{r.games}</td>
-              <td>{fmt(r.avgPct)}%</td>
+              <td>{r.avgPct === null ? '–' : `${fmt(r.avgPct)}%`}</td>
               <td className="rating">{fmt(r.rating)}</td>
             </tr>
           ))}
@@ -728,13 +743,16 @@ function EntryForm({ games, day, draft, defaultGame, callRpc, onSaved, onGameAdd
   useEffect(() => {
     if (!draft) return
     setGameId(draft.game_id)
-    setScoreText(`${fmt(draft.score)}/${fmt(draft.max_score)}`)
+    setScoreText(
+      showScore(draft.score, draft.max_score, isTimed(games.find((g) => g.id === draft.game_id))),
+    )
     setRaw(draft.raw_text || '')
     setMessage(null)
   }, [draft])
 
   const game = games.find((g) => g.id === gameId)
-  const parsed = parseScore(scoreText, maxOf(game))
+  const timedGame = isTimed(game)
+  const parsed = parseScore(scoreText, maxOf(game), timedGame)
 
   // Zalijepljen tekst sa više igrica odjednom: pregled svih blokova umjesto jednog unosa.
   const items = useMemo(() => splitShare(raw, games), [raw, games])
@@ -748,7 +766,7 @@ function EntryForm({ games, day, draft, defaultGame, callRpc, onSaved, onGameAdd
     const parts = splitShare(text, games)
     if (parts.length !== 1) return
     const [only] = parts
-    if (only.score !== null) setScoreText(`${fmt(only.score)}/${fmt(only.max)}`)
+    if (only.score !== null) setScoreText(showScore(only.score, only.max, only.timed))
     if (only.game) setGameId(only.game.id)
   }
 
@@ -801,7 +819,12 @@ function EntryForm({ games, day, draft, defaultGame, callRpc, onSaved, onGameAdd
     if (batch) return saveBatch()
     if (!game) return setMessage({ ok: false, text: 'Izaberi igricu.' })
     if (!parsed) {
-      return setMessage({ ok: false, text: 'Upiši rezultat u formatu ostvareno/maksimum, npr. 300/500.' })
+      return setMessage({
+        ok: false,
+        text: timedGame
+          ? 'Upiši vrijeme, npr. 1:06.34.'
+          : 'Upiši rezultat u formatu ostvareno/maksimum, npr. 300/500.',
+      })
     }
     setBusy(true)
     const err = await callRpc('save_score', {
@@ -813,7 +836,7 @@ function EntryForm({ games, day, draft, defaultGame, callRpc, onSaved, onGameAdd
     })
     setBusy(false)
     if (err) return setMessage({ ok: false, text: err })
-    setMessage({ ok: true, text: `Sačuvano: ${game.name} ${fmt(parsed.score)}/${fmt(parsed.max)}` })
+    setMessage({ ok: true, text: `Sačuvano: ${game.name} ${showScore(parsed.score, parsed.max, timedGame)}` })
     setScoreText('')
     setRaw('')
     onSaved()
@@ -863,7 +886,7 @@ function EntryForm({ games, day, draft, defaultGame, callRpc, onSaved, onGameAdd
                     </span>
                     <span>
                       {it.score !== null ? (
-                        `${fmt(it.score)}/${fmt(it.max)}`
+                        showScore(it.score, it.max, it.timed)
                       ) : (
                         <span className="muted">rezultat nije prepoznat, preskače se</span>
                       )}
@@ -894,7 +917,13 @@ function EntryForm({ games, day, draft, defaultGame, callRpc, onSaved, onGameAdd
               ))}
             </select>
             <input
-              placeholder={game?.default_max ? `npr. 8/${fmt(game.default_max)}` : 'npr. 300/500'}
+              placeholder={
+                timedGame
+                  ? 'npr. 1:06.34'
+                  : game?.default_max
+                    ? `npr. 8/${fmt(game.default_max)}`
+                    : 'npr. 300/500'
+              }
               value={scoreText}
               onChange={(e) => {
                 setScoreText(e.target.value)

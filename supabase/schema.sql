@@ -246,6 +246,7 @@ alter publication supabase_realtime add table public.scores, public.games, publi
 insert into public.games (name, default_max) values
   ('Eraly', 700),
   ('Georiddle', null),
-  ('SizeItUp', null),
+  ('SizeItUp', 500),
   ('Dnevni kviz', 10),
-  ('Krillion', 700);
+  ('Krillion', 700),
+  ('Sumplete', null);
