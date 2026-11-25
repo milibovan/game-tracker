@@ -78,18 +78,23 @@ export function bestByGame(scores, timed = NONE) {
 // Za vremenske igrice poredi se prosječno vrijeme: najbolji prosjek / tvoj prosjek * 100.
 //
 // Vraća:
-//   byPlayer: Map(playerId -> { overall, games: { gameId: { n, avgScore, strength, isBest } } })
-//   byGame:   Map(gameId -> { groupAvg, players })   groupAvg = prosječna jačina grupe
+//   byPlayer: Map(playerId -> { overall, games: { gameId: { n, avgScore, avgMax, strength, isBest } } })
+//   byGame:   Map(gameId -> { groupAvg, groupAvgScore, players })
+//             groupAvg = prosječna jačina grupe, groupAvgScore = prosjek prosjeka igrača
+//             u jedinicama igrice (poeni, odnosno sekunde)
 export function strengths(scores, timed = NONE) {
   const agg = new Map()
   for (const s of scores) {
     if (!agg.has(s.game_id)) agg.set(s.game_id, new Map())
     const perPlayer = agg.get(s.game_id)
-    if (!perPlayer.has(s.player_id)) perPlayer.set(s.player_id, { n: 0, pctSum: 0, scoreSum: 0 })
+    if (!perPlayer.has(s.player_id)) {
+      perPlayer.set(s.player_id, { n: 0, pctSum: 0, scoreSum: 0, maxSum: 0 })
+    }
     const a = perPlayer.get(s.player_id)
     a.n += 1
     a.pctSum += pct(s)
     a.scoreSum += Number(s.score)
+    a.maxSum += Number(s.max_score)
   }
 
   const byPlayer = new Map()
@@ -101,21 +106,29 @@ export function strengths(scores, timed = NONE) {
       n: a.n,
       avgPct: isTimed ? speed(a.scoreSum / a.n) : a.pctSum / a.n,
       avgScore: a.scoreSum / a.n,
+      avgMax: a.maxSum / a.n,
     }))
     const best = Math.max(...rows.map((r) => r.avgPct))
     let sum = 0
+    let scoreSum = 0
     for (const r of rows) {
       const strength = best > 0 ? (r.avgPct / best) * 100 : 0
       sum += strength
+      scoreSum += r.avgScore
       if (!byPlayer.has(r.playerId)) byPlayer.set(r.playerId, { overall: 0, games: {} })
       byPlayer.get(r.playerId).games[gameId] = {
         n: r.n,
         avgScore: r.avgScore,
+        avgMax: r.avgMax,
         strength,
         isBest: rows.length > 1 && best > 0 && r.avgPct >= best - 1e-9,
       }
     }
-    byGame.set(gameId, { groupAvg: sum / rows.length, players: rows.length })
+    byGame.set(gameId, {
+      groupAvg: sum / rows.length,
+      groupAvgScore: scoreSum / rows.length,
+      players: rows.length,
+    })
   }
   for (const p of byPlayer.values()) {
     const list = Object.values(p.games)
