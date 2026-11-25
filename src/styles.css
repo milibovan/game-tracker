@@ -661,8 +661,58 @@ button.cell.on {
   color: var(--muted);
 }
 
+/* Avatar na svom profilu je dugme sa olovkom: klik otvara izbor. */
+.avatar-btn {
+  all: unset;
+  position: relative;
+  flex: none;
+  display: inline-grid;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: transform 0.2s var(--ease);
+}
+
+.avatar-btn:hover {
+  transform: scale(1.06);
+}
+
+.avatar-btn:focus-visible {
+  outline: 3px solid var(--ring);
+  outline-offset: 3px;
+}
+
+.avatar-btn .edit {
+  position: absolute;
+  right: -4px;
+  bottom: -4px;
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--blue);
+  color: var(--on-blue);
+  border: 2px solid var(--surface);
+  font-size: 12px;
+  line-height: 1;
+}
+
+.avatar-btn:hover .edit,
+.avatar-btn[aria-expanded='true'] .edit {
+  background: var(--gold);
+  color: var(--on-gold);
+}
+
 .picker {
-  margin: 10px 0 0;
+  margin: 12px 0 0;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+}
+
+.picker .avatars button {
+  background: var(--surface);
 }
 
 .avatars {
@@ -696,7 +746,7 @@ button.cell.on {
 
 .metric {
   display: grid;
-  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr) 2.4em;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr) auto;
   gap: 3px 10px;
   align-items: center;
   padding: 12px 0;
@@ -719,6 +769,17 @@ button.cell.on {
   text-align: right;
   font: 800 17px/1 var(--display);
   font-variant-numeric: tabular-nums;
+}
+
+.mval {
+  white-space: nowrap;
+}
+
+.mval .of {
+  margin-left: 1px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .metric small {

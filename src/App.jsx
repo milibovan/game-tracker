@@ -432,6 +432,7 @@ function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) 
   const timed = useContext(TimedCtx)
   const stats = useMemo(() => strengths(allScores || [], timed), [allScores, timed])
   const [avatarError, setAvatarError] = useState('')
+  const [picking, setPicking] = useState(false) // otvoren izbor avatara na svom profilu
 
   const pickAvatar = async (avatar) => {
     setAvatarError('')
@@ -444,6 +445,7 @@ function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) 
       )
     }
     onChanged()
+    setPicking(false)
   }
   if (!allScores) return <p className="muted empty">Učitavanje…</p>
 
@@ -463,7 +465,21 @@ function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) 
           return (
             <article key={p.id} className={`card ${p.id === focus ? 'focus' : ''}`} style={{ '--i': i }}>
               <header>
-                <Avatar id={p.id} name={p.name} />
+                {p.id === me ? (
+                  <button
+                    type="button"
+                    className="avatar-btn"
+                    aria-label="Promijeni avatar"
+                    aria-expanded={picking}
+                    title="Promijeni avatar"
+                    onClick={() => setPicking(!picking)}
+                  >
+                    <Avatar id={p.id} name={p.name} />
+                    <span className="edit" aria-hidden="true">✎</span>
+                  </button>
+                ) : (
+                  <Avatar id={p.id} name={p.name} />
+                )}
                 <h2>{p.name}</h2>
                 {profile && (
                   <div className="overall">
@@ -472,9 +488,14 @@ function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) 
                   </div>
                 )}
               </header>
-              {p.id === me && (
-                <details className="picker">
-                  <summary>Promijeni avatar</summary>
+              {p.id === me && picking && (
+                <div className="picker">
+                  <div className="row between">
+                    <strong>Izaberi avatar</strong>
+                    <button type="button" className="link" onClick={() => setPicking(false)}>
+                      zatvori
+                    </button>
+                  </div>
                   <div className="avatars">
                     {AVATARS.map((a) => (
                       <button
@@ -490,12 +511,14 @@ function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) 
                     ))}
                   </div>
                   {avatarError && <p className="error">{avatarError}</p>}
-                </details>
+                </div>
               )}
               {!profile && <p className="muted">Još nema rezultata.</p>}
               {played.map((g) => {
                 const s = profile.games[g.id]
                 const group = stats.byGame.get(g.id)
+                const isTime = timed.has(g.id)
+                const unit = (v) => (isTime ? fmtTime(v) : fmt(v))
                 return (
                   <div key={g.id} className="metric">
                     <span className="mname">
@@ -504,16 +527,18 @@ function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) 
                     <span
                       className="bar"
                       role="img"
-                      aria-label={`Jačina ${fmt(s.strength, 0)} od 100, prosjek grupe ${fmt(group.groupAvg, 0)}`}
+                      aria-label={`Prosjek ${unit(s.avgScore)}, prosjek grupe ${unit(group.groupAvgScore)}`}
                     >
                       <span className={`fill ${level(s.strength, group.groupAvg)}`} style={{ width: `${s.strength}%` }} />
                       <span className="mark" style={{ left: `${group.groupAvg}%` }} />
                     </span>
-                    <strong className="mval">{fmt(s.strength, 0)}</strong>
+                    <strong className="mval" title="Prosječan rezultat">
+                      {unit(s.avgScore)}
+                      {!isTime && <span className="of">/{fmt(s.avgMax)}</span>}
+                    </strong>
                     <small>
-                      {s.isBest ? '★ najbolji na sajtu · ' : ''}prosjek{' '}
-                      {timed.has(g.id) ? fmtTime(s.avgScore) : fmt(s.avgScore)} · odigrano{' '}
-                      {s.n}× · grupa {fmt(group.groupAvg, 0)}
+                      {s.isBest ? '★ najbolji na sajtu · ' : ''}odigrano {s.n}× · prosjek grupe{' '}
+                      {unit(group.groupAvgScore)}
                     </small>
                   </div>
                 )
@@ -525,11 +550,12 @@ function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) 
       <details className="help">
         <summary>Kako se računa jačina?</summary>
         <p>
-          Za svaku igricu tvoj prosječan rezultat se poredi sa prosjekom najboljeg igrača na sajtu
-          u toj igrici, koji dobija 100. Mogući maksimum igrice se ne gleda: ako je maksimum 1000,
-          a najbolji ima prosjek 500, onda je 500 jačina 100. Kod igrica na vrijeme poredi se
-          prosječno vrijeme, pa manje vrijeme daje veću jačinu. Crtica na traci je prosjek grupe, a
-          ukupna jačina je prosjek tvojih igrica.
+          Uz svaku igricu piše tvoj prosječan rezultat u jedinicama te igrice: poeni, tačni
+          odgovori ili vrijeme. Traka pokazuje jačinu: tvoj prosjek se poredi sa prosjekom
+          najboljeg igrača na sajtu u toj igrici, koji ima punu traku. Mogući maksimum igrice se
+          ne gleda: ako je maksimum 1000, a najbolji ima prosjek 500, onda 500 puni traku. Kod
+          igrica na vrijeme poredi se prosječno vrijeme, pa manje vrijeme daje veću jačinu. Crtica
+          na traci je prosjek grupe, a ukupna jačina (0 do 100) je prosjek tvojih traka.
         </p>
       </details>
     </>
