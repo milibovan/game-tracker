@@ -339,14 +339,33 @@ textarea {
 }
 
 .gicon {
-  display: inline-block;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
   width: 1.25em;
   height: 1.25em;
-  line-height: 1.25em;
-  text-align: center;
-  vertical-align: -0.2em;
+  line-height: 1;
+  vertical-align: middle;
   border-radius: 4px;
   object-fit: cover;
+}
+
+/* Ikonica + ime igrice: poravnati po sredini, ime se skraćuje ako nema mjesta. */
+.glabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  min-width: 0;
+  max-width: 100%;
+  vertical-align: middle;
+}
+
+.glabel > span:last-child,
+.glabel > strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .gicon.letter {
@@ -469,12 +488,17 @@ button.player:hover {
   color: var(--blue);
 }
 
+/* Pločica rezultata: popunjena do --p, koliki je rezultat dio maksimuma. */
 button.cell {
+  --fill: color-mix(in srgb, var(--blue) 22%, var(--surface-2));
+  --rest: var(--surface-2);
   min-height: 0;
+  min-width: 4.6em;
   padding: 3px 10px;
   border-color: transparent;
-  background: var(--surface-2);
+  background: linear-gradient(90deg, var(--fill) var(--p, 0%), var(--rest) var(--p, 0%));
   font-weight: 600;
+  text-align: center;
   white-space: nowrap;
 }
 
@@ -482,20 +506,20 @@ button.cell.has-raw {
   border-color: var(--line-2);
 }
 
-/* Najbolji rezultat dana u igrici. */
+/* Najbolji rezultat dana u igrici: plava pločica. */
 button.cell.best {
+  --fill: color-mix(in srgb, var(--blue) 50%, var(--surface));
+  --rest: color-mix(in srgb, var(--blue) 14%, var(--surface));
   border-color: var(--blue);
-  background: var(--blue);
-  color: var(--on-blue);
   font-weight: 800;
   box-shadow: 0 3px 10px -3px color-mix(in srgb, var(--blue) 80%, transparent);
 }
 
 /* Najbolji rezultat ikada u igrici: zlatna pločica. */
 button.cell.record {
-  border-color: #c9962a;
-  background: linear-gradient(135deg, #f8e08a, var(--gold) 55%, #cf9d2e);
-  color: var(--on-gold);
+  --fill: color-mix(in srgb, var(--gold) 55%, var(--surface));
+  --rest: color-mix(in srgb, var(--gold) 16%, var(--surface));
+  border-color: var(--gold);
   font-weight: 800;
   box-shadow: 0 3px 12px -3px rgba(230, 185, 63, 0.9);
 }

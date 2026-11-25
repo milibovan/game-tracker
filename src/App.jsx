@@ -198,6 +198,14 @@ function Tracker() {
     return hits(records) ? 'record' : hits(dayBest) ? 'best' : ''
   }
 
+  // Popunjenost pločice rezultata (0-100): dio maksimuma igrice, a za vremenske igrice
+  // odnos prema najbržem tog dana (jedini rezultat dana je pun).
+  const fillOf = (entry) => {
+    if (!timed.has(entry.game_id)) return pct(entry)
+    const best = dayBest.get(entry.game_id)
+    return best ? (perf(entry, timed) / best) * 100 : 100
+  }
+
   const removeScore = async (entry) => {
     const err = await callRpc('delete_score', { p_game: entry.game_id, p_day: entry.day })
     if (err) setLoadError(err)
@@ -290,7 +298,7 @@ function Tracker() {
             className={activeView === g.id ? 'on' : ''}
             onClick={() => setView(g.id)}
           >
-            <GameIcon name={g.name} /> {g.name}
+            <GameLabel name={g.name} />
           </button>
         ))}
       </nav>
@@ -305,11 +313,13 @@ function Tracker() {
           onSelect={setSelected}
           onPlayer={openProfile}
           markOf={markOf}
+          fillOf={fillOf}
         />
       ) : (
         <GameTable
           rows={rankGame(scores, activeView, timed)}
           markOf={markOf}
+          fillOf={fillOf}
           playerName={playerName}
           me={session?.id}
           selected={selected}
@@ -384,9 +394,10 @@ function Tracker() {
           odigranom igricom ne pretekne nekoga ko je bio odličan u više njih.
         </p>
         <p>
-          Plavo obojen rezultat je najbolji tog dana u svojoj igrici, a zlatni sa zvjezdicom je
-          najbolji ikada zabilježen u toj igrici. Ističe se samo kad igrica ima bar dva rezultata
-          za poređenje.
+          Pločica rezultata je popunjena onoliko koliki je rezultat dio maksimuma, pa je 5/10
+          popunjeno do pola (kod igrica na vrijeme pun je najbrži tog dana). Plava pločica je
+          najbolji rezultat tog dana u svojoj igrici, a zlatna sa zvjezdicom najbolji ikada
+          zabilježen u toj igrici. Ističe se samo kad igrica ima bar dva rezultata za poređenje.
         </p>
       </details>
         </>
@@ -420,6 +431,16 @@ function GameIcon({ name }) {
   return (
     <span className={`gicon ${icon.letter ? 'letter' : ''}`} aria-hidden="true">
       {icon.emoji || icon.letter}
+    </span>
+  )
+}
+
+// Ikonica i ime igrice u istom redu, poravnati po sredini.
+function GameLabel({ name, className = '' }) {
+  return (
+    <span className={`glabel ${className}`}>
+      <GameIcon name={name} />
+      <span>{name}</span>
     </span>
   )
 }
@@ -519,18 +540,21 @@ function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) 
                 const group = stats.byGame.get(g.id)
                 const isTime = timed.has(g.id)
                 const unit = (v) => (isTime ? fmtTime(v) : fmt(v))
+                // Traka: prosjek kao dio maksimuma igrice (227 od 450 je pola trake).
+                // Vremenske igrice nemaju maksimum, pa se mjere prema najbržem igraču.
+                const share = (v) => Math.max(0, Math.min(100, (v / s.avgMax) * 100))
+                const fill = isTime || !(s.avgMax > 0) ? s.strength : share(s.avgScore)
+                const mark = isTime || !(s.avgMax > 0) ? group.groupAvg : share(group.groupAvgScore)
                 return (
                   <div key={g.id} className="metric">
-                    <span className="mname">
-                      <GameIcon name={g.name} /> {g.name}
-                    </span>
+                    <GameLabel name={g.name} className="mname" />
                     <span
                       className="bar"
                       role="img"
                       aria-label={`Prosjek ${unit(s.avgScore)}, prosjek grupe ${unit(group.groupAvgScore)}`}
                     >
-                      <span className={`fill ${level(s.strength, group.groupAvg)}`} style={{ width: `${s.strength}%` }} />
-                      <span className="mark" style={{ left: `${group.groupAvg}%` }} />
+                      <span className={`fill ${level(fill, mark)}`} style={{ width: `${fill}%` }} />
+                      <span className="mark" style={{ left: `${mark}%` }} />
                     </span>
                     <strong className="mval" title="Prosječan rezultat">
                       {unit(s.avgScore)}
@@ -551,11 +575,14 @@ function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) 
         <summary>Kako se računa jačina?</summary>
         <p>
           Uz svaku igricu piše tvoj prosječan rezultat u jedinicama te igrice: poeni, tačni
-          odgovori ili vrijeme. Traka pokazuje jačinu: tvoj prosjek se poredi sa prosjekom
-          najboljeg igrača na sajtu u toj igrici, koji ima punu traku. Mogući maksimum igrice se
-          ne gleda: ako je maksimum 1000, a najbolji ima prosjek 500, onda 500 puni traku. Kod
-          igrica na vrijeme poredi se prosječno vrijeme, pa manje vrijeme daje veću jačinu. Crtica
-          na traci je prosjek grupe, a ukupna jačina (0 do 100) je prosjek tvojih traka.
+          odgovori ili vrijeme. Traka pokazuje koliki je to dio maksimuma igrice, pa je prosjek
+          5 od 10 tačno pola trake, a crtica na njoj je prosjek grupe. Igrice na vrijeme nemaju
+          maksimum, pa je kod njih puna traka najbrži igrač na sajtu.
+        </p>
+        <p>
+          Ukupna jačina (0 do 100) se računa drugačije: u svakoj igrici tvoj prosjek se poredi sa
+          prosjekom najboljeg igrača na sajtu, koji dobija 100, bez obzira na mogući maksimum.
+          Ukupna jačina je prosjek tih ocjena po igricama.
         </p>
       </details>
     </>
@@ -564,7 +591,7 @@ function Profiles({ players, games, allScores, me, focus, callRpc, onChanged }) 
 
 const MARKS = { record: '★ Najbolji rezultat ikada', best: 'Najbolji rezultat dana' }
 
-function ScoreCell({ entry, mark, isSelected, onSelect }) {
+function ScoreCell({ entry, mark, fill, isSelected, onSelect }) {
   const timed = useContext(TimedCtx)
   if (!entry) return <td className="muted">–</td>
   const note = entry.raw_text || 'Ručni unos'
@@ -573,6 +600,7 @@ function ScoreCell({ entry, mark, isSelected, onSelect }) {
       <button
         className={`cell ${mark} ${isSelected ? 'on' : ''} ${entry.raw_text ? 'has-raw' : ''}`}
         title={mark ? `${MARKS[mark]}\n${note}` : note}
+        style={{ '--p': `${Math.max(0, Math.min(100, fill))}%` }}
         onClick={() => onSelect({ playerId: entry.player_id, gameId: entry.game_id })}
       >
         {mark === 'record' && <span aria-hidden="true">★ </span>}
@@ -586,7 +614,7 @@ function ScoreCell({ entry, mark, isSelected, onSelect }) {
 const isSel = (selected, entry) =>
   !!selected && selected.playerId === entry.player_id && selected.gameId === entry.game_id
 
-function TotalTable({ rows, games, playerName, me, selected, onSelect, onPlayer, markOf }) {
+function TotalTable({ rows, games, playerName, me, selected, onSelect, onPlayer, markOf, fillOf }) {
   if (!rows.length) return <p className="muted empty">Nema rezultata za ovaj dan.</p>
   return (
     <div className="scroll">
@@ -597,7 +625,7 @@ function TotalTable({ rows, games, playerName, me, selected, onSelect, onPlayer,
             <th>Igrač</th>
             {games.map((g) => (
               <th key={g.id}>
-                <GameIcon name={g.name} /> {g.name}
+                <GameLabel name={g.name} />
               </th>
             ))}
             <th>Igrica</th>
@@ -622,6 +650,7 @@ function TotalTable({ rows, games, playerName, me, selected, onSelect, onPlayer,
                   key={g.id}
                   entry={r.entries[g.id]}
                   mark={r.entries[g.id] ? markOf(r.entries[g.id]) : ''}
+                  fill={r.entries[g.id] ? fillOf(r.entries[g.id]) : 0}
                   isSelected={!!r.entries[g.id] && isSel(selected, r.entries[g.id])}
                   onSelect={onSelect}
                 />
@@ -637,7 +666,7 @@ function TotalTable({ rows, games, playerName, me, selected, onSelect, onPlayer,
   )
 }
 
-function GameTable({ rows, playerName, me, selected, onSelect, onPlayer, markOf }) {
+function GameTable({ rows, playerName, me, selected, onSelect, onPlayer, markOf, fillOf }) {
   if (!rows.length) return <p className="muted empty">Niko još nije unio ovu igricu za ovaj dan.</p>
   return (
     <div className="scroll">
@@ -662,7 +691,7 @@ function GameTable({ rows, playerName, me, selected, onSelect, onPlayer, markOf 
                   {playerName(r.playerId)}
                 </button>
               </td>
-              <ScoreCell entry={r.entry} mark={markOf(r.entry)} isSelected={isSel(selected, r.entry)} onSelect={onSelect} />
+              <ScoreCell entry={r.entry} mark={markOf(r.entry)} fill={fillOf(r.entry)} isSelected={isSel(selected, r.entry)} onSelect={onSelect} />
               <td>{fmt(r.pct)}%</td>
             </tr>
           ))}
@@ -905,8 +934,8 @@ function EntryForm({ games, day, draft, defaultGame, callRpc, onSaved, onGameAdd
               {items.map((it, i) =>
                 skipped.includes(i) ? null : (
                   <li key={i}>
-                    <span>
-                      <GameIcon name={it.game ? it.game.name : it.title} />{' '}
+                    <span className="glabel">
+                      <GameIcon name={it.game ? it.game.name : it.title} />
                       <strong>{it.game ? it.game.name : it.title}</strong>
                       {!it.game && it.score !== null && <em className="tag">nova igrica</em>}
                     </span>
