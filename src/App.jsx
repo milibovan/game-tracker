@@ -603,7 +603,11 @@ function ScoreCell({ entry, mark, fill, isSelected, onSelect }) {
         style={{ '--p': `${Math.max(0, Math.min(100, fill))}%` }}
         onClick={() => onSelect({ playerId: entry.player_id, gameId: entry.game_id })}
       >
-        {mark === 'record' && <span aria-hidden="true">★ </span>}
+        {mark && (
+          <span className="mark" aria-hidden="true">
+            {mark === 'record' ? '★' : '◆'}
+          </span>
+        )}
         {showScore(entry.score, entry.max_score, timed.has(entry.game_id))}
         {mark && <span className="sr"> ({MARKS[mark].replace('★ ', '')})</span>}
       </button>

@@ -21,6 +21,8 @@
   --gold: #e6b93f;
   --gold-soft: #faebc2;
   --on-gold: #0f2347;
+  --best: #1e4fa3;
+  --record-ink: #8a6a0c;
   --ring: rgba(230, 185, 63, 0.55);
   --red: #c21e26;
   --ok: #1f7a45;
@@ -51,6 +53,8 @@
     --blue-hover: #5488e2;
     --tint: #1a2742;
     --gold-soft: #3a3216;
+    --best: #6fa0f0;
+    --record-ink: #f2cf6a;
     --ring: rgba(230, 185, 63, 0.45);
     --red: #ff7a80;
     --ok: #6fd69a;
@@ -506,22 +510,35 @@ button.cell.has-raw {
   border-color: var(--line-2);
 }
 
-/* Najbolji rezultat dana u igrici: plava pločica. */
+/* Najbolji rezultat dana u igrici: svijetloplava pločica, pun plavi okvir i romb. */
 button.cell.best {
-  --fill: color-mix(in srgb, var(--blue) 50%, var(--surface));
-  --rest: color-mix(in srgb, var(--blue) 14%, var(--surface));
-  border-color: var(--blue);
+  --fill: color-mix(in srgb, var(--best) 26%, var(--surface));
+  --rest: color-mix(in srgb, var(--best) 7%, var(--surface));
+  border-color: var(--best);
   font-weight: 800;
-  box-shadow: 0 3px 10px -3px color-mix(in srgb, var(--blue) 80%, transparent);
+  box-shadow: 0 0 0 1px var(--best), 0 3px 10px -4px color-mix(in srgb, var(--best) 70%, transparent);
 }
 
-/* Najbolji rezultat ikada u igrici: zlatna pločica. */
+/* Najbolji rezultat ikada u igrici: svijetlozlatna pločica, pun zlatni okvir i zvjezdica. */
 button.cell.record {
-  --fill: color-mix(in srgb, var(--gold) 55%, var(--surface));
-  --rest: color-mix(in srgb, var(--gold) 16%, var(--surface));
+  --fill: color-mix(in srgb, var(--gold) 36%, var(--surface));
+  --rest: color-mix(in srgb, var(--gold) 10%, var(--surface));
   border-color: var(--gold);
   font-weight: 800;
-  box-shadow: 0 3px 12px -3px rgba(230, 185, 63, 0.9);
+  box-shadow: 0 0 0 1px var(--gold), 0 3px 12px -4px rgba(230, 185, 63, 0.8);
+}
+
+button.cell .mark {
+  margin-right: 0.3em;
+  font-size: 0.85em;
+}
+
+button.cell.best .mark {
+  color: var(--best);
+}
+
+button.cell.record .mark {
+  color: var(--record-ink);
 }
 
 .tag.best {
